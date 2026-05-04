@@ -1,0 +1,111 @@
+{
+  "name": "nexa",
+  "version": "1.0.0",
+  "description": "Aiva — floating desktop AI assistant",
+  "main": "dist-electron/main.cjs",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail \"npm run dev:renderer\" \"npm run dev:electron:watch\" \"npm run dev:electron:run\"",
+    "dev:renderer": "vite",
+    "dev:electron:watch": "node scripts/build-electron.mjs --watch",
+    "dev:electron:run": "wait-on tcp:5173 dist-electron/main.cjs && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "build:electron": "node scripts/build-electron.mjs",
+    "build": "npm run build:renderer && npm run build:electron",
+    "build:renderer": "vite build",
+    "dist": "npm run build && electron-builder",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "electron-updater": "^6.3.9",
+    "framer-motion": "^11.15.0",
+    "keytar": "^7.9.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.2",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.6",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.aiva.app",
+    "productName": "Aiva",
+    "artifactName": "Aiva-Setup-${version}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "icon": "public/electron-icon.png",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/keytar/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Aiva-Setup.${ext}",
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "allowToChangeInstallationDirectory": false,
+      "installerLanguages": [
+        "en_US"
+      ],
+      "language": "1033"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity",
+      "artifactName": "${productName}-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility",
+      "artifactName": "${productName}-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://example.com/updates/"
+      }
+    ]
+  }
+}
