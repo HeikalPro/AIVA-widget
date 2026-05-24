@@ -192,11 +192,6 @@ function createWindow() {
     }
   })
 
-  mainWindow.on('blur', () => {
-    if (!mainWindow?.isVisible()) return
-    mainWindow.webContents.send('nexa:blur')
-  })
-
   let boundsBroadcastTimer: NodeJS.Timeout | undefined
   const scheduleBoundsBroadcast = () => {
     if (boundsBroadcastTimer) clearTimeout(boundsBroadcastTimer)

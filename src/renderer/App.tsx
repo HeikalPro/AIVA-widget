@@ -3,8 +3,20 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ChatPanel } from '@/components/ChatPanel'
 import { FloatingWidget } from '@/components/FloatingWidget'
 import { LoginForm } from '@/components/LoginForm'
+import { MessageFeedbackModal } from '@/components/MessageFeedbackModal'
+import { Toast } from '@/components/Toast'
 import { useAuth } from '@/hooks/useAuth'
-import { assertApiBaseUrl, isHaivaChatEnabled, sendChatMessage } from '@/services/api'
+import {
+  assertApiBaseUrl,
+  isHalanAgentChatEnabled,
+  sendChatMessage,
+  usesAssistantStreamPlaceholder,
+} from '@/services/api'
+import {
+  halanFetchMessages,
+  halanHistoryRowToChatMessage,
+  halanSubmitRating,
+} from '@/services/halanChatClient'
 import {
   ASSISTANT_BUBBLE_PX,
   getStoredChatLayout,
@@ -28,6 +40,12 @@ export function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+  const [ratingBusyId, setRatingBusyId] = useState<number | null>(null)
+  const [rateDownMessageId, setRateDownMessageId] = useState<number | null>(null)
+  const [rateDownInitialFeedback, setRateDownInitialFeedback] = useState<string>('')
+  const [ratingModalSubmitting, setRatingModalSubmitting] = useState(false)
   /** Mirrors session/local storage so follow-up sends always reuse thread (axios + IPC timing). */
   const conversationIdRef = useRef<string | null>(null)
   const chatOpenRef = useRef(chatOpen)
@@ -38,6 +56,41 @@ export function App() {
   useEffect(() => {
     assertApiBaseUrl()
   }, [])
+
+  useEffect(() => {
+    if (!toast) return
+    const t = window.setTimeout(() => setToast(null), 4500)
+    return () => window.clearTimeout(t)
+  }, [toast])
+
+  useEffect(() => {
+    if (state !== 'authenticated' || !isHalanAgentChatEnabled()) return
+    const cid = getStoredConversationId()
+    conversationIdRef.current = cid
+    if (!cid) return
+
+    let cancelled = false
+    setHistoryLoading(true)
+    void halanFetchMessages(cid)
+      .then((rows) => {
+        if (cancelled) return
+        if (getStoredConversationId() !== cid) return
+        setMessages(rows.map(halanHistoryRowToChatMessage))
+      })
+      .catch(() => {
+        if (cancelled) return
+        // Stale or deleted conversation — discard it and start fresh silently.
+        clearStoredConversationId()
+        conversationIdRef.current = null
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [state])
 
   const applyAssistantCollapsed = useCallback(async () => {
     const cur = await window.nexa.window.getBounds()
@@ -132,9 +185,6 @@ export function App() {
   }, [chatOpen, state, applyAssistantCollapsed, applyAssistantExpanded])
 
   useEffect(() => {
-    const unBlur = window.nexa.on('nexa:blur', () => {
-      setChatOpen(false)
-    })
     const unLogout = window.nexa.on('nexa:logout-request', async () => {
       clearStoredConversationId()
       conversationIdRef.current = null
@@ -149,7 +199,6 @@ export function App() {
       }
     })
     return () => {
-      unBlur()
       unLogout()
       unTray()
     }
@@ -195,12 +244,15 @@ export function App() {
   async function handleSend() {
     const text = input.trim()
     if (!text || loading) return
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text }
-    const haiva = isHaivaChatEnabled()
-    const assistantMsgId = haiva ? crypto.randomUUID() : ''
-    const assistantPlaceholder: ChatMessage | null = haiva
+    const streamUi = usesAssistantStreamPlaceholder()
+    const halan = isHalanAgentChatEnabled()
+    const userTempId = crypto.randomUUID()
+    const assistantMsgId = streamUi ? crypto.randomUUID() : ''
+    const assistantPlaceholder: ChatMessage | null = streamUi
       ? { id: assistantMsgId, role: 'assistant', content: '' }
       : null
+
+    const userMsg: ChatMessage = { id: userTempId, role: 'user', content: text }
 
     setInput('')
     setMessages((m) => (assistantPlaceholder ? [...m, userMsg, assistantPlaceholder] : [...m, userMsg]))
@@ -212,7 +264,7 @@ export function App() {
           user_message: text,
           conversation_id: cid,
         },
-        haiva
+        streamUi
           ? {
               onHaivaAssistantText: (acc) => {
                 setMessages((m) =>
@@ -229,7 +281,66 @@ export function App() {
       const reply =
         res.response ||
         '(No assistant text in JSON — open DevTools → Network → /chat/ response.)'
-      if (haiva && assistantPlaceholder) {
+
+      if (halan) {
+        const uid = res.user_message_id
+        const aid = res.assistant_message_id
+        const replyText =
+          reply ||
+          (streamUi ? '(Empty reply from stream.)' : '(Empty reply.)')
+        if (streamUi && assistantPlaceholder) {
+          setMessages((m) =>
+            m.map((x) => {
+              if (x.id === userTempId) {
+                return {
+                  ...x,
+                  id: uid != null ? `halan-${uid}` : x.id,
+                  messageId: uid ?? x.messageId,
+                }
+              }
+              if (x.id === assistantMsgId) {
+                return {
+                  ...x,
+                  id: aid != null ? `halan-${aid}` : x.id,
+                  messageId: aid ?? x.messageId,
+                  content: replyText,
+                }
+              }
+              return x
+            }),
+          )
+        } else {
+          setMessages((m) => [
+            ...m.map((x) =>
+              x.id === userTempId
+                ? {
+                    ...x,
+                    id: uid != null ? `halan-${uid}` : x.id,
+                    messageId: uid ?? x.messageId,
+                  }
+                : x,
+            ),
+            {
+              id: aid != null ? `halan-${aid}` : crypto.randomUUID(),
+              messageId: aid,
+              role: 'assistant',
+              content: replyText,
+            },
+          ])
+        }
+
+        if (
+          res.conversation_id &&
+          (res.assistant_message_id == null || res.user_message_id == null)
+        ) {
+          try {
+            const rows = await halanFetchMessages(res.conversation_id)
+            setMessages(rows.map(halanHistoryRowToChatMessage))
+          } catch {
+            /* keep messages from send response */
+          }
+        }
+      } else if (streamUi && assistantPlaceholder) {
         setMessages((m) =>
           m.map((x) => (x.id === assistantMsgId ? { ...x, content: reply } : x)),
         )
@@ -238,7 +349,7 @@ export function App() {
       }
     } catch (e) {
       const errText = `Error: ${e instanceof Error ? e.message : 'Request failed'}`
-      if (haiva && assistantPlaceholder) {
+      if (streamUi && assistantPlaceholder) {
         setMessages((m) =>
           m.map((x) => (x.id === assistantMsgId ? { ...x, content: errText } : x)),
         )
@@ -254,6 +365,45 @@ export function App() {
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleThumbUp(messageId: number) {
+    const cid = conversationIdRef.current ?? getStoredConversationId()
+    if (!cid) return
+    setRatingBusyId(messageId)
+    try {
+      await halanSubmitRating(cid, messageId, { rating: 'up' })
+      setMessages((m) =>
+        m.map((x) =>
+          x.messageId === messageId ? { ...x, rating: 'up', feedback: null } : x,
+        ),
+      )
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : 'Could not save rating')
+    } finally {
+      setRatingBusyId(null)
+    }
+  }
+
+  async function handleDownModalSubmit(feedback: string) {
+    const mid = rateDownMessageId
+    const cid = conversationIdRef.current ?? getStoredConversationId()
+    if (mid == null || !cid) return
+    setRatingModalSubmitting(true)
+    try {
+      const trimmed = feedback.trim()
+      await halanSubmitRating(cid, mid, { rating: 'down', feedback: trimmed })
+      setMessages((m) =>
+        m.map((x) =>
+          x.messageId === mid ? { ...x, rating: 'down', feedback: trimmed } : x,
+        ),
+      )
+      setRateDownMessageId(null)
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : 'Could not save feedback')
+    } finally {
+      setRatingModalSubmitting(false)
     }
   }
 
@@ -306,7 +456,24 @@ export function App() {
               onNewConversation={handleNewConversation}
               onLogout={() => void handleLogout()}
               onCollapseChat={() => setChatOpen(false)}
+              ratingsEnabled={isHalanAgentChatEnabled()}
+              ratingBusyId={ratingBusyId}
+              onThumbUp={(id) => void handleThumbUp(id)}
+              onThumbDown={(id) => {
+                const existing = messages.find((x) => x.messageId === id)?.feedback ?? ''
+                setRateDownInitialFeedback(existing)
+                setRateDownMessageId(id)
+              }}
+              historyLoading={historyLoading}
             />
+            <MessageFeedbackModal
+              open={rateDownMessageId != null}
+              submitting={ratingModalSubmitting}
+              initialFeedback={rateDownInitialFeedback}
+              onClose={() => !ratingModalSubmitting && setRateDownMessageId(null)}
+              onSubmit={(fb) => void handleDownModalSubmit(fb)}
+            />
+            <Toast message={toast} />
           </motion.div>
         ) : (
           <motion.div

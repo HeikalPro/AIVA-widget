@@ -4,6 +4,12 @@ interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string
   /** If `1`, skip token gate and open chat (HAIVA has no login). */
   readonly VITE_SKIP_LOGIN?: string
+  /** If `1`, use halan_agent_chat on `VITE_CHAT_API_BASE` (default http://127.0.0.1:8091). */
+  readonly VITE_USE_HALAN_AGENT_CHAT?: string
+  /** Base URL for halan_agent_chat (no trailing slash). */
+  readonly VITE_CHAT_API_BASE?: string
+  /** If `1`, halan chat uses POST …/messages/stream (SSE); else JSON POST …/messages */
+  readonly VITE_HALAN_CHAT_SSE?: string
   /** If `1`, use HAIVA routes: POST /conversations, POST /conversations/:id/messages */
   readonly VITE_USE_HAIVA_CHAT?: string
   /** Optional corpus for HAIVA message body (`corpus_id`). */

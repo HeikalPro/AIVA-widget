@@ -20,10 +20,21 @@ export type ChatRequest = {
 export type ChatResponse = {
   response: string
   conversation_id: string
+  /** halan_agent_chat: from non-stream POST or SSE `phase: done`. */
+  user_message_id?: number
+  assistant_message_id?: number
 }
 
+export type MessageRating = 'up' | 'down'
+
 export type ChatMessage = {
+  /** Stable React key; prefer `halan-${messageId}` when `messageId` is set. */
   id: string
+  /** Server message id (halan_agent_chat); required for ratings. */
+  messageId?: number
   role: 'user' | 'assistant'
   content: string
+  /** From GET history or after successful rating. */
+  rating?: MessageRating | null
+  feedback?: string | null
 }

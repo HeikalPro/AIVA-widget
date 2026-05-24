@@ -1,8 +1,14 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
-import { CHAT_DEFAULT_CORPUS_ID } from '@/constants/chatCorpus'
+import { resolveChatCorpusId } from '@/constants/chatCorpus'
 import type { ChatRequest, ChatResponse, LoginResponse } from '@/types/api'
 import { normalizeChatResponse } from '@/services/chatNormalize'
 import { clearToken, getToken } from '@/services/token'
+import {
+  isHalanAgentChatEnabled,
+  sendHalanChatMessage,
+} from '@/services/halanChatClient'
+
+export { isHalanAgentChatEnabled }
 
 const baseURL = import.meta.env.VITE_API_BASE_URL
 
@@ -12,6 +18,14 @@ function useHaivaChat(): boolean {
 
 /** Used by UI to branch streaming vs single-shot assistant bubble. */
 export function isHaivaChatEnabled(): boolean {
+  return useHaivaChat()
+}
+
+/** Streaming assistant deltas (placeholder bubble + live updates). */
+export function usesAssistantStreamPlaceholder(): boolean {
+  if (isHalanAgentChatEnabled()) {
+    return import.meta.env.VITE_HALAN_CHAT_SSE === '1'
+  }
   return useHaivaChat()
 }
 
@@ -26,15 +40,6 @@ function apiPath(key: 'login' | 'chat'): string {
 
 const loginPath = apiPath('login')
 const chatPath = apiPath('chat')
-
-function resolveCorpusId(payload: ChatRequest): string {
-  return (
-    payload.corpus_id?.trim() ||
-    import.meta.env.VITE_HAIVA_CORPUS_ID?.trim() ||
-    import.meta.env.VITE_CHAT_CORPUS_ID?.trim() ||
-    CHAT_DEFAULT_CORPUS_ID
-  )
-}
 
 export const api = axios.create({
   baseURL: baseURL || undefined,
@@ -100,6 +105,14 @@ api.interceptors.response.use(
 )
 
 export function assertApiBaseUrl(): void {
+  if (isHalanAgentChatEnabled()) {
+    if (!import.meta.env.VITE_CHAT_API_BASE?.trim()) {
+      console.info(
+        'halan_agent_chat: VITE_CHAT_API_BASE not set; using default http://127.0.0.1:8091',
+      )
+    }
+    return
+  }
   if (!import.meta.env.VITE_API_BASE_URL) {
     console.warn('VITE_API_BASE_URL is not set. Set it in .env for production.')
   }
@@ -325,6 +338,12 @@ export async function sendChatMessage(
   payload: ChatRequest,
   options?: SendChatMessageOptions,
 ): Promise<ChatResponse> {
+  if (isHalanAgentChatEnabled()) {
+    return sendHalanChatMessage(payload, {
+      onAssistantText: options?.onHaivaAssistantText,
+    })
+  }
+
   if (useHaivaChat()) {
     let conversationId = payload.conversation_id?.trim() ?? ''
     if (!conversationId) {
@@ -336,7 +355,7 @@ export async function sendChatMessage(
     }
 
     const body: Record<string, unknown> = { message: payload.user_message }
-    body.corpus_id = resolveCorpusId(payload)
+    body.corpus_id = resolveChatCorpusId(payload.corpus_id)
     const route = import.meta.env.VITE_HAIVA_MESSAGE_ROUTE?.trim()
     if (route) body.route = route
     const searchQuery = import.meta.env.VITE_HAIVA_SEARCH_QUERY?.trim()
@@ -384,7 +403,7 @@ export async function sendChatMessage(
   if (payload.conversation_id) {
     body.conversation_id = payload.conversation_id
   }
-  body.corpus_id = resolveCorpusId(payload)
+  body.corpus_id = resolveChatCorpusId(payload.corpus_id)
 
   const { data } = await api.post<unknown>(chatPath, body, {
     headers: { 'Content-Type': 'application/json' },
