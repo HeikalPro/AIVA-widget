@@ -10,6 +10,10 @@ export async function getToken(): Promise<string | null> {
   return window.nexa.token.get()
 }
 
+export async function getRefreshToken(): Promise<string | null> {
+  return window.nexa.token.getRefresh()
+}
+
 export async function setToken(token: string): Promise<void> {
   await window.nexa.token.set(token)
 }

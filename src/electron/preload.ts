@@ -22,6 +22,7 @@ function on(channel: NexaFromMainChannel, listener: (...args: unknown[]) => void
 contextBridge.exposeInMainWorld('nexa', {
   token: {
     get: () => ipcRenderer.invoke('nexa:token:get'),
+    getRefresh: () => ipcRenderer.invoke('nexa:token:get-refresh'),
     set: (value: string) => ipcRenderer.invoke('nexa:token:set', value),
     setRefresh: (value: string) => ipcRenderer.invoke('nexa:token:set-refresh', value),
     clearRefresh: () => ipcRenderer.invoke('nexa:token:clear-refresh'),

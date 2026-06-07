@@ -26,6 +26,7 @@ export type ZohoCallbackPayload = {
 export type NexaAPI = {
   token: {
     get: () => Promise<string | null>
+    getRefresh: () => Promise<string | null>
     set: (value: string) => Promise<void>
     setRefresh: (value: string) => Promise<void>
     clearRefresh: () => Promise<void>
@@ -63,6 +64,7 @@ export type NexaFromMainChannel =
 
 export type NexaToMainChannel =
   | 'nexa:token:get'
+  | 'nexa:token:get-refresh'
   | 'nexa:token:set'
   | 'nexa:token:set-refresh'
   | 'nexa:token:clear-refresh'

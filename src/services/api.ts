@@ -2,6 +2,7 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { resolveChatCorpusId } from '@/constants/chatCorpus'
 import type { ChatRequest, ChatResponse, LoginResponse } from '@/types/api'
 import { normalizeChatResponse } from '@/services/chatNormalize'
+import { tryRefreshAccessToken } from '@/services/aivaAuthFetch'
 import { clearToken, getToken } from '@/services/token'
 import { getAuthApiBase, usesAivaAuth } from '@/services/authConfig'
 import {
@@ -104,7 +105,20 @@ api.interceptors.response.use(
       ].join(' ')
     }
 
-    if (status === 401 || status === 403) {
+    if (status === 401) {
+      const config = err.config as (InternalAxiosRequestConfig & { _authRetry?: boolean }) | undefined
+      if (config && !config._authRetry) {
+        const ok = await tryRefreshAccessToken()
+        if (ok) {
+          config._authRetry = true
+          const token = await getToken()
+          if (token) config.headers.Authorization = `Bearer ${token}`
+          return api(config)
+        }
+      }
+      await clearToken().catch(() => {})
+      onSessionExpired()
+    } else if (status === 403) {
       await clearToken().catch(() => {})
       onSessionExpired()
     }

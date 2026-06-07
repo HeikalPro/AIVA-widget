@@ -1,4 +1,4 @@
-import { getToken } from '@/services/token'
+import { fetchWithAuth } from '@/services/aivaAuthFetch'
 import type { ChatMessage, ChatRequest, ChatResponse } from '@/types/api'
 
 /** AIVA-V2 session RAG chat (`/api/chat/*`). Enable with `VITE_USE_AIVA_SESSION_CHAT=1`. */
@@ -27,14 +27,6 @@ function apiUrl(path: string): string {
   const base = getApiBase()
   const p = path.startsWith('/') ? path : `/${path}`
   return `${base}${p}`
-}
-
-async function authHeaders(json = false): Promise<Record<string, string>> {
-  const h: Record<string, string> = { Accept: 'application/json' }
-  if (json) h['Content-Type'] = 'application/json'
-  const token = await getToken()
-  if (token) h.Authorization = `Bearer ${token}`
-  return h
 }
 
 async function readErrorMessage(res: Response): Promise<string> {
@@ -71,7 +63,9 @@ async function resolveAccountId(): Promise<number> {
   }
 
   // GET /api/accounts returns only accounts assigned to the logged-in user (agents/supervisors).
-  const res = await fetch(apiUrl('/api/accounts'), { headers: await authHeaders() })
+  const res = await fetchWithAuth(apiUrl('/api/accounts'), {
+    headers: { Accept: 'application/json' },
+  })
   if (!res.ok) throw new Error(await readErrorMessage(res))
   const accounts = (await res.json()) as { id: number }[]
   if (!Array.isArray(accounts) || accounts.length === 0) {
@@ -84,9 +78,9 @@ async function resolveAccountId(): Promise<number> {
 
 export async function aivaCreateSession(accountId?: number): Promise<string> {
   const aid = accountId ?? (await resolveAccountId())
-  const res = await fetch(apiUrl('/api/chat/sessions'), {
+  const res = await fetchWithAuth(apiUrl('/api/chat/sessions'), {
     method: 'POST',
-    headers: await authHeaders(true),
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ account_id: aid }),
   })
   if (!res.ok) throw new Error(await readErrorMessage(res))
@@ -96,8 +90,8 @@ export async function aivaCreateSession(accountId?: number): Promise<string> {
 }
 
 export async function aivaFetchSessionMessages(sessionId: string): Promise<ChatMessage[]> {
-  const res = await fetch(apiUrl(`/api/chat/sessions/${encodeURIComponent(sessionId)}`), {
-    headers: await authHeaders(),
+  const res = await fetchWithAuth(apiUrl(`/api/chat/sessions/${encodeURIComponent(sessionId)}`), {
+    headers: { Accept: 'application/json' },
   })
   if (!res.ok) throw new Error(await readErrorMessage(res))
   const data = (await res.json()) as unknown
@@ -126,17 +120,20 @@ export async function sendAivaSessionChatMessage(
     sessionId = await aivaCreateSession()
   }
 
-  const headers = await authHeaders(true)
-  headers.Accept = 'text/event-stream'
-
-  const res = await fetch(apiUrl(`/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      message_text: payload.user_message,
-      top_k: parseTopK(),
-    }),
-  })
+  const res = await fetchWithAuth(
+    apiUrl(`/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`),
+    {
+      method: 'POST',
+      headers: {
+        Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message_text: payload.user_message,
+        top_k: parseTopK(),
+      }),
+    },
+  )
 
   if (!res.ok) {
     throw new Error(await readErrorMessage(res))

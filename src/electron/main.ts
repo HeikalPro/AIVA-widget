@@ -302,6 +302,9 @@ function registerIpc() {
   ipcMain.handle('nexa:token:get', async () => {
     return keytar.getPassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT)
   })
+  ipcMain.handle('nexa:token:get-refresh', async () => {
+    return keytar.getPassword(KEYTAR_SERVICE, KEYTAR_REFRESH_ACCOUNT)
+  })
   ipcMain.handle('nexa:token:set', async (_e, token: unknown) => {
     if (typeof token !== 'string' || !token) throw new Error('Invalid token')
     await keytar.setPassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT, token)
