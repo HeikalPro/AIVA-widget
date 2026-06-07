@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
-import electronIcon from '@/assets/electron-icon.png'
+import { BrandLogo } from '@/components/BrandLogo'
 import { ASSISTANT_BUBBLE_PX } from '@/services/chatWindowSize'
 
 type Props = {
@@ -141,22 +141,15 @@ export function FloatingWidget({ onOpen }: Props) {
       whileHover={{ scale: 1.06 }}
       whileTap={{ scale: 0.94 }}
       transition={{ type: 'spring', stiffness: 520, damping: 32 }}
-      className="no-drag relative h-12 w-12 cursor-grab rounded-full outline-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+      className="no-drag relative h-12 w-12 cursor-grab rounded-full outline-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-gochat/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
       onPointerDown={onPointerDown}
       onKeyDown={onKeyDown}
     >
       <div
-        className="pointer-events-none relative h-full w-full overflow-hidden rounded-full border border-white/15 bg-[#0d1117] ring-1 ring-inset ring-white/10"
+        className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-widget-strong bg-white p-1.5 shadow-widget ring-1 ring-slate-200/90"
         aria-hidden
       >
-        <img
-          src={electronIcon}
-          alt=""
-          width={48}
-          height={48}
-          draggable={false}
-          className="h-full w-full object-cover"
-        />
+        <BrandLogo className="h-full w-full object-contain" />
       </div>
     </motion.div>
   )

@@ -7,6 +7,7 @@ const validFromMain: NexaFromMainChannel[] = [
   'nexa:logout-request',
   'nexa:tray-open',
   'nexa:window-bounds',
+  'nexa:zoho-callback',
 ]
 
 function on(channel: NexaFromMainChannel, listener: (...args: unknown[]) => void): () => void {
@@ -22,7 +23,13 @@ contextBridge.exposeInMainWorld('nexa', {
   token: {
     get: () => ipcRenderer.invoke('nexa:token:get'),
     set: (value: string) => ipcRenderer.invoke('nexa:token:set', value),
+    setRefresh: (value: string) => ipcRenderer.invoke('nexa:token:set-refresh', value),
+    clearRefresh: () => ipcRenderer.invoke('nexa:token:clear-refresh'),
     clear: () => ipcRenderer.invoke('nexa:token:clear'),
+  },
+  zoho: {
+    start: (loginUrl: string) => ipcRenderer.invoke('nexa:zoho:start', loginUrl),
+    cancel: () => ipcRenderer.invoke('nexa:zoho:cancel'),
   },
   window: {
     setLoginMode: () => ipcRenderer.invoke('nexa:window:set-login'),

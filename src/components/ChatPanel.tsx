@@ -4,12 +4,64 @@ import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
+import { BrandLogo } from '@/components/BrandLogo'
 import { WindowChromeButtons } from '@/components/WindowChromeButtons'
 import type { ChatMessage } from '@/types/api'
 import {
   assistantMarkdownSanitizeSchema,
   enhanceAssistantMarkdown,
 } from '@/utils/enhanceAssistantMarkdown'
+
+/** Speech bubble with plus — new conversation */
+function IconNewChat({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      <path d="M12 7v6M9 10h6" />
+    </svg>
+  )
+}
+
+const headerIconBtn =
+  'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 outline-none transition-colors hover:border-gochat hover:bg-slate-50 hover:text-gochat focus-visible:ring-2 focus-visible:ring-gochat/30 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40'
+
+const userBubbleClass =
+  'user-chat-bubble max-w-[min(85vw,20rem)] rounded-2xl rounded-br-md border border-[#003D75] bg-[#0057A8] px-3.5 py-2.5 text-sm leading-relaxed text-white shadow-sm'
+
+function IconLogOut({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5M21 12H9" />
+    </svg>
+  )
+}
+
+function IconSend({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+      <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
 
 function ThumbUpIcon({ className }: { className?: string }) {
   return (
@@ -27,7 +79,6 @@ function ThumbDownIcon({ className }: { className?: string }) {
   )
 }
 
-/** Shown only under assistant bubbles — separate from the bordered answer card. */
 function MessageRatingControls({
   message,
   ratingsEnabled,
@@ -45,62 +96,72 @@ function MessageRatingControls({
   if (!ratingsEnabled || mid == null || !message.content.trim()) return null
 
   const busy = ratingBusyId === mid
-
   const baseBtn =
-    'inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-35'
-
+    'inline-flex h-7 w-7 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-35'
   const upActive = message.rating === 'up'
   const downActive = message.rating === 'down'
 
   return (
     <div className="flex w-full flex-col items-end gap-1">
       <div
-        className="inline-flex items-center gap-0.5 rounded-xl border border-white/[0.1] bg-zinc-900/65 px-1 py-0.5 shadow-sm backdrop-blur-sm"
+        className="inline-flex items-center gap-0.5 rounded-full border-2 border-widget bg-white px-1 py-0.5 shadow-sm"
         aria-label="Rate this reply"
       >
-        {/* Thumb Up — green when selected; click again to switch */}
         <button
           type="button"
           disabled={busy}
-          title={upActive ? 'Rated helpful — click to change' : 'Helpful'}
+          title={upActive ? 'Rated helpful' : 'Helpful'}
           onClick={() => onThumbUp(mid)}
           className={`${baseBtn} ${
             upActive
-              ? 'text-green-400 hover:bg-green-500/20 hover:text-green-300'
-              : 'text-zinc-400 hover:bg-zinc-600/50 hover:text-zinc-100'
+              ? 'text-emerald-400 hover:bg-emerald-500/15'
+              : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
           }`}
         >
-          <ThumbUpIcon />
+          <ThumbUpIcon className="h-3.5 w-3.5" />
         </button>
-
-        {/* Thumb Down — red when selected; click again to edit feedback */}
         <button
           type="button"
           disabled={busy}
-          title={downActive ? 'Rated not helpful — click to edit' : 'Not helpful'}
+          title={downActive ? 'Rated not helpful' : 'Not helpful'}
           onClick={() => onThumbDown(mid)}
           className={`${baseBtn} ${
             downActive
-              ? 'text-red-400 hover:bg-red-500/20 hover:text-red-300'
-              : 'text-zinc-400 hover:bg-zinc-600/50 hover:text-zinc-100'
+              ? 'text-rose-600 hover:bg-rose-50'
+              : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
           }`}
         >
-          <ThumbDownIcon />
+          <ThumbDownIcon className="h-3.5 w-3.5" />
         </button>
-
-        {busy && <span className="px-1 text-[10px] text-zinc-400">…</span>}
+        {busy && <span className="px-1 text-[10px] text-slate-500">…</span>}
       </div>
-
       {downActive && message.feedback?.trim() && (
         <details className="max-w-full text-right">
-          <summary className="cursor-pointer text-[10px] text-zinc-500 hover:text-zinc-400">
-            Your feedback (click to edit ↑)
+          <summary className="cursor-pointer text-[10px] text-slate-500 hover:text-slate-700">
+            Your feedback
           </summary>
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-[10px] text-zinc-400">
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-[10px] text-slate-600">
             {message.feedback}
           </p>
         </details>
       )}
+    </div>
+  )
+}
+
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-2.5 rounded-2xl border-2 border-widget bg-slate-50 px-3.5 py-2.5 shadow-sm">
+      <span className="flex gap-1" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="h-1.5 w-1.5 animate-pulse rounded-full bg-gochat-light/90"
+            style={{ animationDelay: `${i * 150}ms` }}
+          />
+        ))}
+      </span>
+      <span className="text-xs text-slate-600">Thinking…</span>
     </div>
   )
 }
@@ -111,12 +172,9 @@ type Props = {
   input: string
   onInputChange: (v: string) => void
   onSend: () => void
-  /** Clear thread and history; next message starts a new conversation. */
   onNewConversation: () => void
   onLogout: () => void
-  /** − button: collapse expanded chat back to the floating bubble (same as Escape). */
   onCollapseChat: () => void
-  /** halan_agent_chat message ratings */
   ratingsEnabled?: boolean
   ratingBusyId?: number | null
   onThumbUp?: (messageId: number) => void
@@ -152,133 +210,169 @@ export function ChatPanel({
     }
   }
 
+  const canSend = !loading && input.trim().length > 0
+
   return (
     <motion.div
-      initial={{ opacity: 0, x: 14 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 10 }}
-      transition={{ type: 'spring', stiffness: 440, damping: 36 }}
-      title="Drag the header to move. − closes chat, × quits the app."
-      className="flex h-full w-full min-w-0 flex-col overflow-hidden border border-white/[0.08] bg-zinc-950/55 shadow-none backdrop-blur-2xl"
+      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 6, scale: 0.98 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+      title="Drag the header to move the window"
+      className="flex h-full w-full min-w-0 flex-col rounded-2xl border border-widget-strong bg-white"
     >
-      {/* `-webkit-app-region: drag` — move frameless window; buttons use `no-drag` */}
-      <header className="drag flex shrink-0 cursor-move select-none items-center gap-3 border-b border-white/[0.08] bg-zinc-950/78 px-4 py-3 backdrop-blur-xl">
-        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-zinc-100">
-          Aiva
-        </span>
-        <div className="no-drag flex shrink-0 items-center gap-1">
+      <header className="drag relative flex shrink-0 cursor-move select-none items-center gap-3 border-b border-widget-strong bg-white px-3.5 py-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-widget-strong bg-white p-0.5">
+            <BrandLogo className="h-full w-full object-contain" alt="" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold tracking-tight text-slate-900">GoChat247</p>
+            <p className="truncate text-[10px] font-medium text-gochat">AI assistant</p>
+          </div>
+        </div>
+        <div className="no-drag flex shrink-0 items-center gap-0.5">
           <button
             type="button"
             onClick={onNewConversation}
             disabled={loading}
-            title="Start a new thread"
-            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-800/80 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+            title="New chat"
+            aria-label="Start new chat"
+            className={headerIconBtn}
           >
-            New chat
+            <IconNewChat className="h-[18px] w-[18px] shrink-0" />
           </button>
           <button
             type="button"
             onClick={onLogout}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-800/80 hover:text-zinc-200"
+            title="Log out"
+            aria-label="Log out"
+            className={headerIconBtn}
           >
-            Log out
+            <IconLogOut className="h-[18px] w-[18px] shrink-0 stroke-[1.75]" />
           </button>
-          <WindowChromeButtons
-            firstButtonAriaLabel="Close chat"
-            onMinimize={onCollapseChat}
-            onClose={() => void window.nexa.app.quit()}
-          />
+          <div className="ml-0.5 border-l border-widget-strong pl-1">
+            <WindowChromeButtons
+              firstButtonAriaLabel="Minimize chat"
+              onMinimize={onCollapseChat}
+              onClose={onCollapseChat}
+            />
+          </div>
         </div>
       </header>
 
-      <div className="no-drag min-h-0 flex-1 space-y-3 overflow-y-auto bg-zinc-950/25 px-3.5 py-3 [scrollbar-color:rgba(63,63,70,0.55)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/50 [&::-webkit-scrollbar-track]:bg-transparent">
-        {historyLoading && (
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-500 border-t-violet-400" />
-            Loading conversation…
-          </div>
-        )}
-        {messages.flatMap((m) => {
-          const rowKey = m.messageId != null ? `mid-${m.messageId}` : m.id
-          const isUser = m.role === 'user'
-          const bubble = (
-            <div
-              key={rowKey}
-              className={`flex max-w-[min(92%,30rem)] flex-col ${isUser ? 'ml-auto items-end' : 'mr-auto items-start'}`}
-            >
-              <div
-                className={`rounded-2xl px-3 py-2 text-sm leading-relaxed ${
-                  isUser
-                    ? 'w-fit max-w-[min(85vw,20rem)] bg-violet-600/95 text-white backdrop-blur-sm'
-                    : 'w-full border border-white/[0.1] bg-zinc-800/55 text-zinc-100 backdrop-blur-md'
-                }`}
-              >
-                {isUser ? (
-                  <p className="whitespace-pre-wrap break-words">{m.content}</p>
-                ) : (
-                  <div className="markdown-body break-words" dir="auto">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      rehypePlugins={[
-                        rehypeRaw,
-                        [rehypeSanitize, assistantMarkdownSanitizeSchema],
-                      ]}
-                    >
-                      {enhanceAssistantMarkdown(m.content)}
-                    </ReactMarkdown>
-                  </div>
-                )}
-              </div>
+      <div className="no-drag relative min-h-0 flex-1 overflow-y-auto bg-white px-3.5 py-3 [scrollbar-color:rgba(148,163,184,0.6)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent">
+        <div className="relative space-y-3">
+          {historyLoading && (
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-gochat" />
+              Loading conversation…
             </div>
-          )
-          if (isUser) return [bubble]
-          return [
-            bubble,
-            <div
-              key={`${rowKey}-fb`}
-              className="mr-auto flex w-full max-w-[min(92%,30rem)] justify-end"
-            >
-              <MessageRatingControls
-                message={m}
-                ratingsEnabled={ratingsEnabled}
-                ratingBusyId={ratingBusyId}
-                onThumbUp={onThumbUp}
-                onThumbDown={onThumbDown}
-              />
-            </div>,
-          ]
-        })}
-        {loading && (
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-500 border-t-violet-400" />
-            Thinking…
-          </div>
-        )}
-        <div ref={bottomRef} />
+          )}
+
+          {!historyLoading && messages.length === 0 && !loading && (
+            <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
+              <div className="mb-3 flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border-2 border-widget-strong bg-white p-1.5 shadow-sm">
+                <BrandLogo className="h-full w-full object-contain" alt="" />
+              </div>
+              <p className="text-sm font-medium text-slate-800">How can I help?</p>
+              <p className="mt-1 max-w-[16rem] text-xs leading-relaxed text-slate-600">
+                Ask a question about your knowledge base or start a new topic.
+              </p>
+            </div>
+          )}
+
+          {messages.flatMap((m) => {
+            const rowKey = m.messageId != null ? `mid-${m.messageId}` : m.id
+            const isUser = m.role === 'user'
+            const bubble = (
+              <div
+                key={rowKey}
+                className={`flex max-w-[min(92%,30rem)] flex-col ${isUser ? 'ml-auto items-end' : 'mr-auto items-start'}`}
+              >
+                {!isUser && (
+                  <span className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                    GoChat247
+                  </span>
+                )}
+                <div
+                  className={
+                    isUser
+                      ? userBubbleClass
+                      : 'w-full rounded-2xl border border-widget bg-slate-50 px-3.5 py-2.5 text-sm leading-relaxed text-slate-800 shadow-sm'
+                  }
+                >
+                  {isUser ? (
+                    <p className="whitespace-pre-wrap break-words text-white" dir="auto">
+                      {m.content}
+                    </p>
+                  ) : (
+                    <div className="markdown-body break-words" dir="auto">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[
+                          rehypeRaw,
+                          [rehypeSanitize, assistantMarkdownSanitizeSchema],
+                        ]}
+                      >
+                        {enhanceAssistantMarkdown(m.content)}
+                      </ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+            if (isUser) return [bubble]
+            return [
+              bubble,
+              <div
+                key={`${rowKey}-fb`}
+                className="mr-auto flex w-full max-w-[min(92%,30rem)] justify-end"
+              >
+                <MessageRatingControls
+                  message={m}
+                  ratingsEnabled={ratingsEnabled}
+                  ratingBusyId={ratingBusyId}
+                  onThumbUp={onThumbUp}
+                  onThumbDown={onThumbDown}
+                />
+              </div>,
+            ]
+          })}
+
+          {loading && messages.length > 0 && (
+            <div className="mr-auto">
+              <TypingIndicator />
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
       </div>
 
-      {/* Single composer block so input + Send read as one control */}
-      <div className="no-drag shrink-0 border-t border-white/[0.08] bg-zinc-950/72 p-2 backdrop-blur-xl">
-        <div className="overflow-hidden rounded-lg border border-white/[0.12] bg-zinc-900/72 backdrop-blur-xl">
+      <div className="no-drag shrink-0 border-t border-widget-strong bg-white px-3 pb-3 pt-2.5">
+        <div className="flex items-end gap-2 rounded-2xl border border-slate-400 bg-white p-1.5 shadow-sm focus-within:border-gochat focus-within:outline-none">
           <textarea
             value={input}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={onKeyDown}
             rows={2}
-            placeholder="Message… (Enter to send, Shift+Enter for newline)"
-            className="no-drag min-h-[2.75rem] w-full resize-none border-0 bg-transparent px-2.5 py-2 text-sm leading-snug text-zinc-100 outline-none ring-0 placeholder:text-zinc-500 focus:ring-0"
+            placeholder="Ask anything…"
+            className="no-drag max-h-28 min-h-[2.25rem] flex-1 resize-none border-0 bg-transparent px-2.5 py-2 text-sm leading-relaxed text-slate-900 outline-none placeholder:text-slate-400"
           />
-          <div className="border-t border-white/[0.1] bg-zinc-900/78 px-2 pb-1.5 pt-1 backdrop-blur-md">
-            <button
-              type="button"
-              onClick={onSend}
-              disabled={loading || !input.trim()}
-              className="no-drag w-full rounded-md bg-violet-600 py-1.5 text-sm font-medium text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Send
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onSend}
+            disabled={!canSend}
+            title="Send (Enter)"
+            className="login-primary-btn mb-0.5 inline-flex h-9 w-9 shrink-0 appearance-none items-center justify-center rounded-xl border border-gochat-dark bg-[#0057A8] text-white shadow-gochat outline-none transition-all hover:bg-gochat-light disabled:cursor-not-allowed disabled:border-slate-300 disabled:!bg-slate-200 disabled:!text-slate-400 disabled:shadow-none"
+          >
+            <IconSend className="h-4 w-4" />
+          </button>
         </div>
+        <p className="mt-1.5 text-center text-[10px] text-slate-500">
+          Enter to send · Shift+Enter for new line
+        </p>
       </div>
     </motion.div>
   )

@@ -4,6 +4,18 @@ interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string
   /** If `1`, skip token gate and open chat (HAIVA has no login). */
   readonly VITE_SKIP_LOGIN?: string
+  /** If `1`, use AIVA-V2 session RAG chat (`/api/chat/*` on `VITE_API_BASE_URL`). */
+  readonly VITE_USE_AIVA_SESSION_CHAT?: string
+  /** Account id for new chat sessions (optional; else first GET /api/accounts). */
+  readonly VITE_AIVA_ACCOUNT_ID?: string
+  /** RAG top_k for POST /api/chat/sessions/:id/messages (1–50, default 10). */
+  readonly VITE_AIVA_CHAT_TOP_K?: string
+  /** If `1`, show Zoho login when not using skip-login (also on when AIVA session chat is on). */
+  readonly VITE_ENABLE_ZOHO_LOGIN?: string
+  /** AIVA-V2 URL for login/Zoho when chat uses Halan or another base (e.g. http://127.0.0.1:8000). */
+  readonly VITE_AUTH_API_BASE_URL?: string
+  /** If `1`, use AIVA `/api/auth/login` (same as enabling ZOHO or session chat). */
+  readonly VITE_USE_AIVA_AUTH?: string
   /** If `1`, use halan_agent_chat on `VITE_CHAT_API_BASE` (default http://127.0.0.1:8091). */
   readonly VITE_USE_HALAN_AGENT_CHAT?: string
   /** Base URL for halan_agent_chat (no trailing slash). */

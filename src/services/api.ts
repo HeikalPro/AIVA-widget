@@ -3,12 +3,17 @@ import { resolveChatCorpusId } from '@/constants/chatCorpus'
 import type { ChatRequest, ChatResponse, LoginResponse } from '@/types/api'
 import { normalizeChatResponse } from '@/services/chatNormalize'
 import { clearToken, getToken } from '@/services/token'
+import { getAuthApiBase, usesAivaAuth } from '@/services/authConfig'
+import {
+  isAivaSessionChatEnabled,
+  sendAivaSessionChatMessage,
+} from '@/services/aivaSessionChatClient'
 import {
   isHalanAgentChatEnabled,
   sendHalanChatMessage,
 } from '@/services/halanChatClient'
 
-export { isHalanAgentChatEnabled }
+export { isAivaSessionChatEnabled, isHalanAgentChatEnabled }
 
 const baseURL = import.meta.env.VITE_API_BASE_URL
 
@@ -25,6 +30,9 @@ export function isHaivaChatEnabled(): boolean {
 export function usesAssistantStreamPlaceholder(): boolean {
   if (isHalanAgentChatEnabled()) {
     return import.meta.env.VITE_HALAN_CHAT_SSE === '1'
+  }
+  if (isAivaSessionChatEnabled()) {
+    return true
   }
   return useHaivaChat()
 }
@@ -113,6 +121,17 @@ export function assertApiBaseUrl(): void {
     }
     return
   }
+  if (isAivaSessionChatEnabled()) {
+    if (!import.meta.env.VITE_API_BASE_URL?.trim()) {
+      console.warn('AIVA session chat: VITE_API_BASE_URL is not set (e.g. http://127.0.0.1:8000).')
+    }
+    if (!import.meta.env.VITE_AIVA_ACCOUNT_ID?.trim()) {
+      console.info(
+        'AIVA session chat: VITE_AIVA_ACCOUNT_ID not set; will use first account from GET /api/accounts.',
+      )
+    }
+    return
+  }
   if (!import.meta.env.VITE_API_BASE_URL) {
     console.warn('VITE_API_BASE_URL is not set. Set it in .env for production.')
   }
@@ -122,13 +141,34 @@ export function assertApiBaseUrl(): void {
  * Legacy JWT login (POST `VITE_API_LOGIN_PATH`, default `/login`).
  * Disabled for HAIVA / no-auth setups — use `VITE_SKIP_LOGIN=1` and do not call this.
  */
+async function readLoginError(res: Response): Promise<string> {
+  const raw = await res.text()
+  try {
+    const j = JSON.parse(raw) as { detail?: unknown; message?: string }
+    if (typeof j.message === 'string') return j.message
+    if (typeof j.detail === 'string') return j.detail
+  } catch {
+    /* keep */
+  }
+  return raw.slice(0, 500) || `Request failed (${res.status})`
+}
+
 export async function loginRequest(username: string, password: string): Promise<LoginResponse> {
-  void username
-  void password
-  throw new Error(
-    'Login API is disabled in this build. Use HAIVA with VITE_SKIP_LOGIN=1, or restore loginRequest in src/services/api.ts.',
-  )
-  /*
+  if (usesAivaAuth()) {
+    const base = getAuthApiBase()
+    if (!base) throw new Error('Set VITE_AUTH_API_BASE_URL or VITE_API_BASE_URL for AIVA login')
+    const res = await fetch(`${base}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ email: username.trim(), password }),
+    })
+    if (!res.ok) {
+      const msg = await readLoginError(res)
+      throw new Error(res.status === 404 ? `Login not found at ${base}/api/auth/login — is AIVA-V2 backend running? (${msg})` : msg)
+    }
+    return (await res.json()) as LoginResponse
+  }
+
   const body = new URLSearchParams()
   if (import.meta.env.VITE_LOGIN_MINIMAL_BODY === '1') {
     body.set('username', username)
@@ -143,7 +183,6 @@ export async function loginRequest(username: string, password: string): Promise<
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   })
   return data
-  */
 }
 
 function parseCommaSeparatedInts(raw: string | undefined): number[] {
@@ -340,6 +379,12 @@ export async function sendChatMessage(
 ): Promise<ChatResponse> {
   if (isHalanAgentChatEnabled()) {
     return sendHalanChatMessage(payload, {
+      onAssistantText: options?.onHaivaAssistantText,
+    })
+  }
+
+  if (isAivaSessionChatEnabled()) {
+    return sendAivaSessionChatMessage(payload, {
       onAssistantText: options?.onHaivaAssistantText,
     })
   }

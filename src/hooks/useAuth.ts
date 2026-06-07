@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
+import { skipLogin } from '@/services/authConfig'
 import { clearToken, getToken } from '@/services/token'
 
 type AuthState = 'loading' | 'unauthenticated' | 'authenticated'
-
-function skipLogin(): boolean {
-  return import.meta.env.VITE_SKIP_LOGIN === '1'
-}
 
 export function useAuth() {
   const [state, setState] = useState<AuthState>('loading')

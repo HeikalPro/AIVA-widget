@@ -3,9 +3,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import keytar from 'keytar'
 import { TRAY_ICON_BUFFER } from './trayIcon'
+import { ensureAivaBackendRunning, stopManagedBackend } from './backendManager'
 
 const KEYTAR_SERVICE = 'Aiva'
 const KEYTAR_ACCOUNT = 'auth-token'
+const KEYTAR_REFRESH_ACCOUNT = 'auth-refresh-token'
+
+let zohoWindow: BrowserWindow | null = null
+let zohoReturnPrefix: string | null = null
 
 const LOGIN_W = 440
 const LOGIN_H = 560
@@ -230,6 +235,7 @@ function buildTrayMenu() {
       label: 'Logout',
       click: () => {
         void keytar.deletePassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT)
+        void keytar.deletePassword(KEYTAR_SERVICE, KEYTAR_REFRESH_ACCOUNT)
         mainWindow?.webContents.send('nexa:logout-request')
       },
     },
@@ -261,6 +267,37 @@ function createTray() {
   })
 }
 
+function closeZohoWindow(sendCancelled = false) {
+  if (zohoWindow && !zohoWindow.isDestroyed()) {
+    zohoWindow.close()
+  }
+  zohoWindow = null
+  zohoReturnPrefix = null
+  if (sendCancelled && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('nexa:zoho-callback', { cancelled: true })
+  }
+}
+
+function handleZohoNavigation(url: string) {
+  if (!zohoReturnPrefix || !mainWindow || mainWindow.isDestroyed()) return
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return
+  }
+  const prefix = zohoReturnPrefix.replace(/\/$/, '')
+  const current = `${parsed.origin}${parsed.pathname}`.replace(/\/$/, '')
+  if (current !== prefix) return
+
+  const payload: Record<string, string> = {}
+  parsed.searchParams.forEach((value, key) => {
+    payload[key] = value
+  })
+  mainWindow.webContents.send('nexa:zoho-callback', payload)
+  closeZohoWindow(false)
+}
+
 function registerIpc() {
   ipcMain.handle('nexa:token:get', async () => {
     return keytar.getPassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT)
@@ -269,8 +306,59 @@ function registerIpc() {
     if (typeof token !== 'string' || !token) throw new Error('Invalid token')
     await keytar.setPassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT, token)
   })
+  ipcMain.handle('nexa:token:set-refresh', async (_e, token: unknown) => {
+    if (typeof token !== 'string' || !token) throw new Error('Invalid refresh token')
+    await keytar.setPassword(KEYTAR_SERVICE, KEYTAR_REFRESH_ACCOUNT, token)
+  })
+  ipcMain.handle('nexa:token:clear-refresh', async () => {
+    await keytar.deletePassword(KEYTAR_SERVICE, KEYTAR_REFRESH_ACCOUNT)
+  })
   ipcMain.handle('nexa:token:clear', async () => {
     await keytar.deletePassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT)
+    await keytar.deletePassword(KEYTAR_SERVICE, KEYTAR_REFRESH_ACCOUNT)
+  })
+
+  ipcMain.handle('nexa:zoho:start', async (_e, loginUrl: unknown) => {
+    if (typeof loginUrl !== 'string' || !loginUrl.trim()) {
+      throw new Error('Invalid Zoho login URL')
+    }
+    let returnTo = ''
+    try {
+      returnTo = decodeURIComponent(new URL(loginUrl).searchParams.get('return_to') ?? '')
+    } catch {
+      throw new Error('Invalid Zoho login URL')
+    }
+    zohoReturnPrefix = returnTo ? returnTo.split('?')[0].replace(/\/$/, '') : null
+    closeZohoWindow(false)
+
+    zohoWindow = new BrowserWindow({
+      width: 520,
+      height: 720,
+      parent: mainWindow ?? undefined,
+      modal: !!mainWindow,
+      autoHideMenuBar: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+      },
+    })
+
+    const wc = zohoWindow.webContents
+    const onNav = (_event: Electron.Event, url: string) => handleZohoNavigation(url)
+    wc.on('will-redirect', onNav)
+    wc.on('did-navigate', onNav)
+    wc.on('did-navigate-in-page', onNav)
+    zohoWindow.on('closed', () => {
+      zohoWindow = null
+      zohoReturnPrefix = null
+    })
+
+    await zohoWindow.loadURL(loginUrl)
+  })
+
+  ipcMain.handle('nexa:zoho:cancel', async () => {
+    closeZohoWindow(true)
   })
 
   ipcMain.handle('nexa:window:set-login', async () => {
@@ -357,6 +445,7 @@ function registerIpc() {
 
   ipcMain.handle('nexa:app:logout', async () => {
     await keytar.deletePassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT)
+    await keytar.deletePassword(KEYTAR_SERVICE, KEYTAR_REFRESH_ACCOUNT)
     mainWindow?.webContents.send('nexa:logout-request')
   })
 
@@ -398,7 +487,14 @@ if (!gotLock) {
     }
   })
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    const backend = await ensureAivaBackendRunning()
+    if (backend.status === 'failed') {
+      console.error(`[aiva-backend] ${backend.reason}`)
+    } else if (backend.status === 'started') {
+      console.info(`[aiva-backend] started for widget at ${backend.baseUrl}`)
+    }
+
     // Launch at OS login (Windows Startup, macOS Login Items, Linux XDG autostart where supported).
     app.setLoginItemSettings({
       openAtLogin: true,
@@ -413,6 +509,11 @@ if (!gotLock) {
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
+  })
+
+  app.on('before-quit', () => {
+    isQuitting = true
+    stopManagedBackend()
   })
 
   app.on('window-all-closed', () => {

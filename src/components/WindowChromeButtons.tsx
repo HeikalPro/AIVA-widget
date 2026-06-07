@@ -20,7 +20,7 @@ export function WindowChromeButtons({ onMinimize, onClose, firstButtonAriaLabel 
           onMinimize()
         }}
         aria-label={firstButtonAriaLabel}
-        className="flex h-8 w-9 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-white/10 hover:text-zinc-100"
+        className="flex h-8 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
       >
         <svg className="h-[3px] w-3" viewBox="0 0 12 2" aria-hidden>
           <rect width="12" height="2" rx="0.5" fill="currentColor" />
@@ -33,7 +33,7 @@ export function WindowChromeButtons({ onMinimize, onClose, firstButtonAriaLabel 
           onClose()
         }}
         aria-label="Close"
-        className="flex h-8 w-9 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-red-600 hover:text-white"
+        className="flex h-8 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600"
       >
         <svg className="h-3.5 w-3.5" viewBox="0 0 12 12" fill="none" aria-hidden>
           <path

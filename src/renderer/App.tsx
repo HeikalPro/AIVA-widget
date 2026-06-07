@@ -3,15 +3,22 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ChatPanel } from '@/components/ChatPanel'
 import { FloatingWidget } from '@/components/FloatingWidget'
 import { LoginForm } from '@/components/LoginForm'
+import { ZohoCallbackView } from '@/components/ZohoCallbackView'
+import { isZohoCallbackRoute } from '@/services/zohoAuth'
 import { MessageFeedbackModal } from '@/components/MessageFeedbackModal'
 import { Toast } from '@/components/Toast'
 import { useAuth } from '@/hooks/useAuth'
 import {
   assertApiBaseUrl,
+  isAivaSessionChatEnabled,
   isHalanAgentChatEnabled,
   sendChatMessage,
   usesAssistantStreamPlaceholder,
 } from '@/services/api'
+import {
+  aivaCreateSession,
+  aivaFetchSessionMessages,
+} from '@/services/aivaSessionChatClient'
 import {
   halanFetchMessages,
   halanHistoryRowToChatMessage,
@@ -64,22 +71,51 @@ export function App() {
   }, [toast])
 
   useEffect(() => {
-    if (state !== 'authenticated' || !isHalanAgentChatEnabled()) return
-    const cid = getStoredConversationId()
-    conversationIdRef.current = cid
-    if (!cid) return
+    if (state !== 'authenticated') return
+
+    if (isHalanAgentChatEnabled()) {
+      const cid = getStoredConversationId()
+      conversationIdRef.current = cid
+      if (!cid) return
+
+      let cancelled = false
+      setHistoryLoading(true)
+      void halanFetchMessages(cid)
+        .then((rows) => {
+          if (cancelled) return
+          if (getStoredConversationId() !== cid) return
+          setMessages(rows.map(halanHistoryRowToChatMessage))
+        })
+        .catch(() => {
+          if (cancelled) return
+          clearStoredConversationId()
+          conversationIdRef.current = null
+        })
+        .finally(() => {
+          if (!cancelled) setHistoryLoading(false)
+        })
+
+      return () => {
+        cancelled = true
+      }
+    }
+
+    if (!isAivaSessionChatEnabled()) return
+
+    const sid = getStoredConversationId()
+    conversationIdRef.current = sid
+    if (!sid) return
 
     let cancelled = false
     setHistoryLoading(true)
-    void halanFetchMessages(cid)
+    void aivaFetchSessionMessages(sid)
       .then((rows) => {
         if (cancelled) return
-        if (getStoredConversationId() !== cid) return
-        setMessages(rows.map(halanHistoryRowToChatMessage))
+        if (getStoredConversationId() !== sid) return
+        setMessages(rows)
       })
       .catch(() => {
         if (cancelled) return
-        // Stale or deleted conversation — discard it and start fresh silently.
         clearStoredConversationId()
         conversationIdRef.current = null
       })
@@ -189,8 +225,8 @@ export function App() {
       clearStoredConversationId()
       conversationIdRef.current = null
       setMessages([])
-      setChatOpen(false)
       await logout()
+      setChatOpen(false)
       await applyLoginMode()
     })
     const unTray = window.nexa.on('nexa:tray-open', () => {
@@ -210,8 +246,8 @@ export function App() {
         clearStoredConversationId()
         conversationIdRef.current = null
         setMessages([])
-        setChatOpen(false)
         await logout()
+        setChatOpen(false)
         await applyLoginMode()
       })()
     }
@@ -422,6 +458,16 @@ export function App() {
     clearStoredConversationId()
     conversationIdRef.current = null
     setMessages([])
+    if (isAivaSessionChatEnabled()) {
+      void aivaCreateSession()
+        .then((sid) => {
+          conversationIdRef.current = sid
+          setStoredConversationId(sid)
+        })
+        .catch((e) => {
+          setToast(e instanceof Error ? e.message : 'Could not start a new session')
+        })
+    }
   }
 
   if (state === 'loading') {
@@ -433,6 +479,16 @@ export function App() {
   }
 
   if (state === 'unauthenticated') {
+    if (isZohoCallbackRoute()) {
+      return (
+        <ZohoCallbackView
+          onSuccess={handleLoginSuccess}
+          onError={() => {
+            window.history.replaceState({}, '', '/')
+          }}
+        />
+      )
+    }
     return <LoginForm onSuccess={handleLoginSuccess} />
   }
 
