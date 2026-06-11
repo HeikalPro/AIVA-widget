@@ -1,12 +1,10 @@
 import { getAuthApiBase } from '@/services/authConfig'
-import { isAivaSessionChatEnabled } from '@/services/aivaSessionChatClient'
 import type { ZohoCallbackPayload } from '@/types/nexa-api'
 
+/** Zoho OAuth UI is off unless `VITE_ENABLE_ZOHO_LOGIN=1` (code kept for optional re-enable). */
 export function isZohoLoginAvailable(): boolean {
   if (import.meta.env.VITE_SKIP_LOGIN === '1') return false
-  if (import.meta.env.VITE_ENABLE_ZOHO_LOGIN === '1') return !!getAuthApiBase()
-  if (isAivaSessionChatEnabled()) return !!getAuthApiBase()
-  return false
+  return import.meta.env.VITE_ENABLE_ZOHO_LOGIN === '1' && !!getAuthApiBase()
 }
 
 export function isZohoCallbackRoute(): boolean {

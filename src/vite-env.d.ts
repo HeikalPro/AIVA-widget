@@ -10,7 +10,7 @@ interface ImportMetaEnv {
   readonly VITE_AIVA_ACCOUNT_ID?: string
   /** RAG top_k for POST /api/chat/sessions/:id/messages (1–50, default 10). */
   readonly VITE_AIVA_CHAT_TOP_K?: string
-  /** If `1`, show Zoho login when not using skip-login (also on when AIVA session chat is on). */
+  /** If `1`, show "Sign in with Zoho" on the login screen (disabled by default). */
   readonly VITE_ENABLE_ZOHO_LOGIN?: string
   /** AIVA-V2 URL for login/Zoho when chat uses Halan or another base (e.g. http://127.0.0.1:8000). */
   readonly VITE_AUTH_API_BASE_URL?: string
