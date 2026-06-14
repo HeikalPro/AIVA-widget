@@ -1,11 +1,11 @@
 import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { BrandLogo } from '@/components/BrandLogo'
-import { DEFAULT_LOGIN_EMAIL_DOMAIN, LoginEmailField } from '@/components/LoginEmailField'
+import { LoginEmailField } from '@/components/LoginEmailField'
 import { WindowChromeButtons } from '@/components/WindowChromeButtons'
 import { loginRequest } from '@/services/api'
 import { usesAivaAuth } from '@/services/authConfig'
-import { buildLoginEmail, usesEmailDomainPicker } from '@/lib/loginEmail'
+import { buildLoginEmail } from '@/lib/loginEmail'
 import { setTokens } from '@/services/token'
 import type { ZohoCallbackPayload } from '@/types/nexa-api'
 import {
@@ -28,14 +28,12 @@ const primaryBtnClass =
 
 export function LoginForm({ onSuccess }: Props) {
   const [username, setUsername] = useState('')
-  const [emailDomain, setEmailDomain] = useState(DEFAULT_LOGIN_EMAIL_DOMAIN)
-  const [customDomain, setCustomDomain] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [zohoPending, setZohoPending] = useState(false)
   const zohoAvailable = isZohoLoginAvailable()
-  const emailPicker = usesAivaAuth() && usesEmailDomainPicker()
+  const useGoChatEmail = usesAivaAuth()
 
   useEffect(() => {
     if (!zohoAvailable) return
@@ -70,7 +68,7 @@ export function LoginForm({ onSuccess }: Props) {
     setBusy(true)
     try {
       const res = await loginRequest(
-        buildLoginEmail(username, emailDomain, customDomain),
+        useGoChatEmail ? buildLoginEmail(username) : username,
         password,
       )
       await setTokens({
@@ -113,12 +111,8 @@ export function LoginForm({ onSuccess }: Props) {
               </label>
               <LoginEmailField
                 localPart={username}
-                domain={emailDomain}
-                customDomain={customDomain}
                 onLocalPartChange={setUsername}
-                onDomainChange={setEmailDomain}
-                onCustomDomainChange={setCustomDomain}
-                showPicker={emailPicker}
+                showGoChatDomain={useGoChatEmail}
               />
             </div>
             <div>

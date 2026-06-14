@@ -12,8 +12,6 @@ interface ImportMetaEnv {
   readonly VITE_AIVA_CHAT_TOP_K?: string
   /** If `1`, show "Sign in with Zoho" on the login screen (disabled by default). */
   readonly VITE_ENABLE_ZOHO_LOGIN?: string
-  /** Set `0` to use one full email field instead of username + provider dropdown. */
-  readonly VITE_LOGIN_EMAIL_PICKER?: string
   /** AIVA-V2 URL for login/Zoho when chat uses Halan or another base (e.g. http://127.0.0.1:8000). */
   readonly VITE_AUTH_API_BASE_URL?: string
   /** If `1`, use AIVA `/api/auth/login` (same as enabling ZOHO or session chat). */
