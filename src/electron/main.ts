@@ -21,6 +21,38 @@ const EXPANDED_H = 540
 const CHAT_MIN_W = 280
 const CHAT_MIN_H = 360
 
+/** Horizontal strips approximating a circle for `BrowserWindow.setShape` (Windows/Linux). */
+function circleShape(diameter: number): Electron.Rectangle[] {
+  const rects: Electron.Rectangle[] = []
+  const r = diameter / 2
+  for (let y = 0; y < diameter; y++) {
+    const dy = y + 0.5 - r
+    const half = Math.sqrt(Math.max(0, r * r - dy * dy))
+    const x = Math.ceil(r - half)
+    const w = Math.floor(half * 2)
+    if (w > 0) rects.push({ x, y, width: w, height: 1 })
+  }
+  return rects
+}
+
+function applyBubbleWindowChrome(win: BrowserWindow) {
+  if (process.platform === 'win32') {
+    win.setThickFrame(false)
+  }
+  if (process.platform === 'win32' || process.platform === 'linux') {
+    win.setShape(circleShape(BUBBLE))
+  }
+}
+
+function applyRectWindowChrome(win: BrowserWindow, resizable: boolean) {
+  if (process.platform === 'win32' || process.platform === 'linux') {
+    win.setShape([])
+  }
+  if (process.platform === 'win32') {
+    win.setThickFrame(resizable)
+  }
+}
+
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 /** When true, the main window `close` event should quit instead of hiding to tray. */
@@ -164,8 +196,8 @@ function createWindow() {
     alwaysOnTop: false,
     resizable: false,
     minimizable: true,
-    /** Lets frameless windows on Windows show a resize hit-target at the edges. */
-    thickFrame: process.platform === 'win32',
+    /** Thick frame only when chat is expanded; bubble uses a circular `setShape` instead. */
+    thickFrame: false,
     ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -374,6 +406,7 @@ function registerIpc() {
     mainWindow.setMinimumSize(0, 0)
     mainWindow.setMaximumSize(0, 0)
     mainWindow.setBounds(b)
+    applyRectWindowChrome(mainWindow, false)
   })
 
   ipcMain.handle('nexa:window:set-assistant-collapsed', async (_e, arg?: unknown) => {
@@ -395,6 +428,7 @@ function registerIpc() {
     } else {
       mainWindow.setBounds(b)
     }
+    applyBubbleWindowChrome(mainWindow)
   })
 
   ipcMain.handle('nexa:window:get-bounds', async () => {
@@ -439,6 +473,7 @@ function registerIpc() {
     } else {
       mainWindow.setBounds(b)
     }
+    applyRectWindowChrome(mainWindow, true)
   })
 
   ipcMain.handle('nexa:app:quit', async () => {

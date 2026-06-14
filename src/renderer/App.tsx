@@ -534,7 +534,7 @@ export function App() {
         ) : (
           <motion.div
             key="closed"
-            className="flex h-full w-full items-center justify-center bg-transparent"
+            className="h-full w-full overflow-hidden rounded-full bg-transparent"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

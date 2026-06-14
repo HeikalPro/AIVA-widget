@@ -141,15 +141,15 @@ export function FloatingWidget({ onOpen }: Props) {
       whileHover={{ scale: 1.06 }}
       whileTap={{ scale: 0.94 }}
       transition={{ type: 'spring', stiffness: 520, damping: 32 }}
-      className="no-drag relative h-12 w-12 cursor-grab rounded-full outline-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-gochat/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+      className="no-drag relative h-full w-full cursor-grab rounded-full outline-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-gochat/35"
       onPointerDown={onPointerDown}
       onKeyDown={onKeyDown}
     >
       <div
-        className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-widget-strong bg-white p-1.5 shadow-widget ring-1 ring-slate-200/90"
+        className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border-2 border-widget-strong bg-white p-1.5 shadow-gochat"
         aria-hidden
       >
-        <BrandLogo className="h-full w-full object-contain" />
+        <BrandLogo className="h-full w-full rounded-full object-contain" />
       </div>
     </motion.div>
   )
