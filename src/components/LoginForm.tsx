@@ -1,9 +1,11 @@
 import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { BrandLogo } from '@/components/BrandLogo'
+import { DEFAULT_LOGIN_EMAIL_DOMAIN, LoginEmailField } from '@/components/LoginEmailField'
 import { WindowChromeButtons } from '@/components/WindowChromeButtons'
 import { loginRequest } from '@/services/api'
 import { usesAivaAuth } from '@/services/authConfig'
+import { buildLoginEmail, usesEmailDomainPicker } from '@/lib/loginEmail'
 import { setTokens } from '@/services/token'
 import type { ZohoCallbackPayload } from '@/types/nexa-api'
 import {
@@ -26,11 +28,14 @@ const primaryBtnClass =
 
 export function LoginForm({ onSuccess }: Props) {
   const [username, setUsername] = useState('')
+  const [emailDomain, setEmailDomain] = useState(DEFAULT_LOGIN_EMAIL_DOMAIN)
+  const [customDomain, setCustomDomain] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [zohoPending, setZohoPending] = useState(false)
   const zohoAvailable = isZohoLoginAvailable()
+  const emailPicker = usesAivaAuth() && usesEmailDomainPicker()
 
   useEffect(() => {
     if (!zohoAvailable) return
@@ -64,7 +69,10 @@ export function LoginForm({ onSuccess }: Props) {
     setError(null)
     setBusy(true)
     try {
-      const res = await loginRequest(username.trim(), password)
+      const res = await loginRequest(
+        buildLoginEmail(username, emailDomain, customDomain),
+        password,
+      )
       await setTokens({
         access_token: res.access_token,
         refresh_token: res.refresh_token,
@@ -103,12 +111,14 @@ export function LoginForm({ onSuccess }: Props) {
               <label className="mb-1 block text-xs font-medium text-slate-700">
                 {usesAivaAuth() ? 'Email' : 'Username'}
               </label>
-              <input
-                className={fieldClass}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-                required
+              <LoginEmailField
+                localPart={username}
+                domain={emailDomain}
+                customDomain={customDomain}
+                onLocalPartChange={setUsername}
+                onDomainChange={setEmailDomain}
+                onCustomDomainChange={setCustomDomain}
+                showPicker={emailPicker}
               />
             </div>
             <div>
