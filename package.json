@@ -13,6 +13,7 @@
     "build:electron": "node scripts/build-electron.mjs",
     "build": "npm run build:renderer && npm run build:electron",
     "build:renderer": "vite build",
+    "icons": "python scripts/generate-icons.py",
     "dist": "npm run build && electron-builder",
     "postinstall": "electron-builder install-app-deps"
   },
