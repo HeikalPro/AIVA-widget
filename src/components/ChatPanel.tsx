@@ -1,16 +1,22 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { BrandLogo } from '@/components/BrandLogo'
+import { Toast } from '@/components/Toast'
 import { WindowChromeButtons } from '@/components/WindowChromeButtons'
 import type { ChatMessage } from '@/types/api'
 import {
   assistantMarkdownSanitizeSchema,
   enhanceAssistantMarkdown,
 } from '@/utils/enhanceAssistantMarkdown'
+import {
+  copyTextToClipboard,
+  formatAsChat,
+  formatAsEmail,
+} from '@/utils/copyResponseFormats'
 
 /** Speech bubble with plus — new conversation */
 function IconNewChat({ className }: { className?: string }) {
@@ -79,6 +85,50 @@ function ThumbDownIcon({ className }: { className?: string }) {
   )
 }
 
+function CopyFormatControls({ content }: { content: string }) {
+  const [toast, setToast] = useState<{ message: string; variant: 'success' | 'error' } | null>(
+    null,
+  )
+
+  useEffect(() => {
+    if (!toast) return
+    const t = window.setTimeout(() => setToast(null), 2500)
+    return () => window.clearTimeout(t)
+  }, [toast])
+
+  if (!content.trim()) return null
+
+  async function handleCopy(kind: 'email' | 'chat') {
+    const text = kind === 'email' ? formatAsEmail(content) : formatAsChat(content)
+    try {
+      await copyTextToClipboard(text)
+      setToast({
+        message: kind === 'email' ? 'Copied as email' : 'Copied as chat',
+        variant: 'success',
+      })
+    } catch {
+      setToast({ message: 'Could not copy to clipboard', variant: 'error' })
+    }
+  }
+
+  const btnClass =
+    'inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-medium text-slate-600 shadow-sm transition-colors hover:border-gochat/40 hover:bg-slate-50 hover:text-gochat focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gochat/30 disabled:cursor-not-allowed disabled:opacity-40'
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-1.5" aria-label="Copy reply formats">
+        <button type="button" className={btnClass} title="Copy with email formatting" onClick={() => void handleCopy('email')}>
+          Copy as Email
+        </button>
+        <button type="button" className={btnClass} title="Copy with live-chat formatting" onClick={() => void handleCopy('chat')}>
+          Copy as Chat
+        </button>
+      </div>
+      <Toast message={toast?.message ?? null} variant={toast?.variant ?? 'info'} />
+    </>
+  )
+}
+
 function MessageRatingControls({
   message,
   ratingsEnabled,
@@ -102,7 +152,7 @@ function MessageRatingControls({
   const downActive = message.rating === 'down'
 
   return (
-    <div className="flex w-full flex-col items-end gap-1">
+    <div className="inline-flex flex-col items-end gap-1">
       <div
         className="inline-flex items-center gap-0.5 rounded-full border-2 border-widget bg-white px-1 py-0.5 shadow-sm"
         aria-label="Rate this reply"
@@ -285,57 +335,52 @@ export function ChatPanel({
           {messages.flatMap((m) => {
             const rowKey = m.messageId != null ? `mid-${m.messageId}` : m.id
             const isUser = m.role === 'user'
-            const bubble = (
-              <div
-                key={rowKey}
-                className={`flex max-w-[min(92%,30rem)] flex-col ${isUser ? 'ml-auto items-end' : 'mr-auto items-start'}`}
-              >
-                {!isUser && (
-                  <span className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wider text-slate-500">
-                    GoChat247
-                  </span>
-                )}
+            if (isUser) {
+              return [
                 <div
-                  className={
-                    isUser
-                      ? userBubbleClass
-                      : 'w-full rounded-2xl border border-widget bg-slate-50 px-3.5 py-2.5 text-sm leading-relaxed text-slate-800 shadow-sm'
-                  }
+                  key={rowKey}
+                  className="ml-auto flex max-w-[min(92%,30rem)] flex-col items-end"
                 >
-                  {isUser ? (
+                  <div className={userBubbleClass}>
                     <p className="whitespace-pre-wrap break-words text-white" dir="auto">
                       {m.content}
                     </p>
-                  ) : (
-                    <div className="markdown-body break-words" dir="auto">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        rehypePlugins={[
-                          rehypeRaw,
-                          [rehypeSanitize, assistantMarkdownSanitizeSchema],
-                        ]}
-                      >
-                        {enhanceAssistantMarkdown(m.content)}
-                      </ReactMarkdown>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-            if (isUser) return [bubble]
+                  </div>
+                </div>,
+              ]
+            }
+
             return [
-              bubble,
               <div
-                key={`${rowKey}-fb`}
-                className="mr-auto flex w-full max-w-[min(92%,30rem)] justify-end"
+                key={rowKey}
+                className="mr-auto flex w-full max-w-[min(92%,30rem)] flex-col items-start"
               >
-                <MessageRatingControls
-                  message={m}
-                  ratingsEnabled={ratingsEnabled}
-                  ratingBusyId={ratingBusyId}
-                  onThumbUp={onThumbUp}
-                  onThumbDown={onThumbDown}
-                />
+                <span className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                  GoChat247
+                </span>
+                <div className="w-full rounded-2xl border border-widget bg-slate-50 px-3.5 py-2.5 text-sm leading-relaxed text-slate-800 shadow-sm">
+                  <div className="markdown-body break-words" dir="auto">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[
+                        rehypeRaw,
+                        [rehypeSanitize, assistantMarkdownSanitizeSchema],
+                      ]}
+                    >
+                      {enhanceAssistantMarkdown(m.content)}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+                <div className="mt-1.5 flex w-full flex-wrap items-center gap-2">
+                  <CopyFormatControls content={m.content} />
+                  <MessageRatingControls
+                    message={m}
+                    ratingsEnabled={ratingsEnabled}
+                    ratingBusyId={ratingBusyId}
+                    onThumbUp={onThumbUp}
+                    onThumbDown={onThumbDown}
+                  />
+                </div>
               </div>,
             ]
           })}

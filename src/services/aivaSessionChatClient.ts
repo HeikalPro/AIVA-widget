@@ -15,6 +15,8 @@ type AivaMessageOut = {
   id: number
   sender_type: string
   message_text: string
+  rating?: 'up' | 'down' | null
+  feedback?: string | null
 }
 
 function getApiBase(): string {
@@ -49,8 +51,11 @@ export function aivaMessageRowToChatMessage(m: AivaMessageOut): ChatMessage {
   const role = String(m.sender_type).toUpperCase() === 'USER' ? 'user' : 'assistant'
   return {
     id: `aiva-${m.id}`,
+    messageId: m.id,
     role,
     content: m.message_text,
+    rating: m.rating ?? undefined,
+    feedback: m.feedback ?? undefined,
   }
 }
 
@@ -140,9 +145,19 @@ export async function sendAivaSessionChatMessage(
   }
 
   let accumulated = ''
+  let userMessageId: number | undefined
+  let assistantMessageId: number | undefined
   const bump = (delta: string) => {
     accumulated += delta
     options?.onAssistantText?.(accumulated)
+  }
+
+  const parseEvent = (ev: { type?: string; text?: string; user_message_id?: number; assistant_message_id?: number }) => {
+    if (ev.type === 'token' && ev.text) bump(ev.text)
+    if (ev.type === 'done') {
+      if (typeof ev.user_message_id === 'number') userMessageId = ev.user_message_id
+      if (typeof ev.assistant_message_id === 'number') assistantMessageId = ev.assistant_message_id
+    }
   }
 
   const reader = res.body?.getReader()
@@ -151,8 +166,7 @@ export async function sendAivaSessionChatMessage(
     for (const line of raw.split(/\r?\n/)) {
       if (!line.startsWith('data: ')) continue
       try {
-        const ev = JSON.parse(line.slice(6)) as { type?: string; text?: string }
-        if (ev.type === 'token' && ev.text) bump(ev.text)
+        parseEvent(JSON.parse(line.slice(6)) as { type?: string; text?: string; user_message_id?: number; assistant_message_id?: number })
       } catch {
         /* ignore */
       }
@@ -160,6 +174,8 @@ export async function sendAivaSessionChatMessage(
     return {
       response: accumulated.trim() || '(Empty reply from stream.)',
       conversation_id: sessionId,
+      user_message_id: userMessageId,
+      assistant_message_id: assistantMessageId,
     }
   }
 
@@ -174,8 +190,7 @@ export async function sendAivaSessionChatMessage(
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue
       try {
-        const ev = JSON.parse(line.slice(6)) as { type?: string; text?: string }
-        if (ev.type === 'token' && ev.text) bump(ev.text)
+        parseEvent(JSON.parse(line.slice(6)) as { type?: string; text?: string; user_message_id?: number; assistant_message_id?: number })
       } catch {
         /* ignore malformed SSE */
       }
@@ -185,5 +200,19 @@ export async function sendAivaSessionChatMessage(
   return {
     response: accumulated.trim() || '(Empty reply from stream.)',
     conversation_id: sessionId,
+    user_message_id: userMessageId,
+    assistant_message_id: assistantMessageId,
   }
+}
+
+export async function aivaSubmitRating(
+  messageId: number,
+  body: { rating: 'up' } | { rating: 'down'; feedback: string },
+): Promise<void> {
+  const res = await fetchWithAuth(apiUrl(`/api/chat/messages/${messageId}/rating`), {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await readErrorMessage(res))
 }

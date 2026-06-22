@@ -18,6 +18,7 @@ import {
 import {
   aivaCreateSession,
   aivaFetchSessionMessages,
+  aivaSubmitRating,
 } from '@/services/aivaSessionChatClient'
 import {
   halanFetchMessages,
@@ -376,6 +377,60 @@ export function App() {
             /* keep messages from send response */
           }
         }
+      } else if (isAivaSessionChatEnabled()) {
+        const uid = res.user_message_id
+        const aid = res.assistant_message_id
+        const replyText =
+          reply ||
+          (streamUi ? '(Empty reply from stream.)' : '(Empty reply.)')
+        if (streamUi && assistantPlaceholder) {
+          setMessages((m) =>
+            m.map((x) => {
+              if (x.id === userTempId) {
+                return {
+                  ...x,
+                  id: uid != null ? `aiva-${uid}` : x.id,
+                  messageId: uid ?? x.messageId,
+                }
+              }
+              if (x.id === assistantMsgId) {
+                return {
+                  ...x,
+                  id: aid != null ? `aiva-${aid}` : x.id,
+                  messageId: aid ?? x.messageId,
+                  content: replyText,
+                }
+              }
+              return x
+            }),
+          )
+        } else {
+          setMessages((m) => [
+            ...m.map((x) =>
+              x.id === userTempId
+                ? {
+                    ...x,
+                    id: uid != null ? `aiva-${uid}` : x.id,
+                    messageId: uid ?? x.messageId,
+                  }
+                : x,
+            ),
+            {
+              id: aid != null ? `aiva-${aid}` : crypto.randomUUID(),
+              messageId: aid,
+              role: 'assistant',
+              content: replyText,
+            },
+          ])
+        }
+        if (res.conversation_id && (uid == null || aid == null)) {
+          try {
+            const rows = await aivaFetchSessionMessages(res.conversation_id)
+            setMessages(rows)
+          } catch {
+            /* keep messages from send response */
+          }
+        }
       } else if (streamUi && assistantPlaceholder) {
         setMessages((m) =>
           m.map((x) => (x.id === assistantMsgId ? { ...x, content: reply } : x)),
@@ -405,11 +460,15 @@ export function App() {
   }
 
   async function handleThumbUp(messageId: number) {
-    const cid = conversationIdRef.current ?? getStoredConversationId()
-    if (!cid) return
     setRatingBusyId(messageId)
     try {
-      await halanSubmitRating(cid, messageId, { rating: 'up' })
+      if (isAivaSessionChatEnabled()) {
+        await aivaSubmitRating(messageId, { rating: 'up' })
+      } else {
+        const cid = conversationIdRef.current ?? getStoredConversationId()
+        if (!cid) return
+        await halanSubmitRating(cid, messageId, { rating: 'up' })
+      }
       setMessages((m) =>
         m.map((x) =>
           x.messageId === messageId ? { ...x, rating: 'up', feedback: null } : x,
@@ -424,12 +483,17 @@ export function App() {
 
   async function handleDownModalSubmit(feedback: string) {
     const mid = rateDownMessageId
-    const cid = conversationIdRef.current ?? getStoredConversationId()
-    if (mid == null || !cid) return
+    if (mid == null) return
     setRatingModalSubmitting(true)
     try {
       const trimmed = feedback.trim()
-      await halanSubmitRating(cid, mid, { rating: 'down', feedback: trimmed })
+      if (isAivaSessionChatEnabled()) {
+        await aivaSubmitRating(mid, { rating: 'down', feedback: trimmed })
+      } else {
+        const cid = conversationIdRef.current ?? getStoredConversationId()
+        if (!cid) return
+        await halanSubmitRating(cid, mid, { rating: 'down', feedback: trimmed })
+      }
       setMessages((m) =>
         m.map((x) =>
           x.messageId === mid ? { ...x, rating: 'down', feedback: trimmed } : x,
@@ -512,7 +576,7 @@ export function App() {
               onNewConversation={handleNewConversation}
               onLogout={() => void handleLogout()}
               onCollapseChat={() => setChatOpen(false)}
-              ratingsEnabled={isHalanAgentChatEnabled()}
+              ratingsEnabled={isHalanAgentChatEnabled() || isAivaSessionChatEnabled()}
               ratingBusyId={ratingBusyId}
               onThumbUp={(id) => void handleThumbUp(id)}
               onThumbDown={(id) => {
