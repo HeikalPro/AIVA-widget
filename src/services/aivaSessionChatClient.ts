@@ -116,6 +116,14 @@ function parseTopK(): number {
   return n
 }
 
+function buildStreamResponse(accumulated: string, streamError?: string): string {
+  const text = accumulated.trim()
+  if (text && streamError) return `${text}\n\nError: ${streamError}`
+  if (text) return text
+  if (streamError) return `Error: ${streamError}`
+  return '(Empty reply from stream.)'
+}
+
 export async function sendAivaSessionChatMessage(
   payload: ChatRequest,
   options?: SendAivaSessionChatMessageOptions,
@@ -145,6 +153,7 @@ export async function sendAivaSessionChatMessage(
   }
 
   let accumulated = ''
+  let streamError: string | undefined
   let userMessageId: number | undefined
   let assistantMessageId: number | undefined
   const bump = (delta: string) => {
@@ -152,8 +161,23 @@ export async function sendAivaSessionChatMessage(
     options?.onAssistantText?.(accumulated)
   }
 
-  const parseEvent = (ev: { type?: string; text?: string; user_message_id?: number; assistant_message_id?: number }) => {
+  type StreamEvent = {
+    type?: string
+    text?: string
+    message?: string
+    user_message_id?: number
+    assistant_message_id?: number
+  }
+
+  const parseEvent = (ev: StreamEvent) => {
     if (ev.type === 'token' && ev.text) bump(ev.text)
+    if (ev.type === 'error' && ev.message) {
+      streamError = ev.message
+      const display = accumulated.trim()
+        ? `${accumulated}\n\nError: ${ev.message}`
+        : `Error: ${ev.message}`
+      options?.onAssistantText?.(display)
+    }
     if (ev.type === 'done') {
       if (typeof ev.user_message_id === 'number') userMessageId = ev.user_message_id
       if (typeof ev.assistant_message_id === 'number') assistantMessageId = ev.assistant_message_id
@@ -166,13 +190,16 @@ export async function sendAivaSessionChatMessage(
     for (const line of raw.split(/\r?\n/)) {
       if (!line.startsWith('data: ')) continue
       try {
-        parseEvent(JSON.parse(line.slice(6)) as { type?: string; text?: string; user_message_id?: number; assistant_message_id?: number })
+        parseEvent(JSON.parse(line.slice(6)) as StreamEvent)
       } catch {
         /* ignore */
       }
     }
+    if (streamError && !accumulated.trim()) {
+      throw new Error(streamError)
+    }
     return {
-      response: accumulated.trim() || '(Empty reply from stream.)',
+      response: buildStreamResponse(accumulated, streamError),
       conversation_id: sessionId,
       user_message_id: userMessageId,
       assistant_message_id: assistantMessageId,
@@ -190,15 +217,19 @@ export async function sendAivaSessionChatMessage(
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue
       try {
-        parseEvent(JSON.parse(line.slice(6)) as { type?: string; text?: string; user_message_id?: number; assistant_message_id?: number })
+        parseEvent(JSON.parse(line.slice(6)) as StreamEvent)
       } catch {
         /* ignore malformed SSE */
       }
     }
   }
 
+  if (streamError && !accumulated.trim()) {
+    throw new Error(streamError)
+  }
+
   return {
-    response: accumulated.trim() || '(Empty reply from stream.)',
+    response: buildStreamResponse(accumulated, streamError),
     conversation_id: sessionId,
     user_message_id: userMessageId,
     assistant_message_id: assistantMessageId,
