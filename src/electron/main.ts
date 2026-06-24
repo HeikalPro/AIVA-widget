@@ -184,6 +184,8 @@ function resolveElectronIconPath(): string | undefined {
 
 function createWindow() {
   const iconPath = resolveElectronIconPath()
+  const devUrl = process.env.VITE_DEV_SERVER_URL
+  const isDev = Boolean(devUrl)
   mainWindow = new BrowserWindow({
     width: LOGIN_W,
     height: LOGIN_H,
@@ -204,10 +206,11 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Packaged app loads file://; allow HTTPS API calls without browser CORS blocking.
+      webSecurity: isDev,
     },
   })
 
-  const devUrl = process.env.VITE_DEV_SERVER_URL
   if (devUrl) {
     void mainWindow.loadURL(devUrl)
   } else {
