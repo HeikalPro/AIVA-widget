@@ -4,10 +4,27 @@ import path from 'node:path'
 import keytar from 'keytar'
 import { TRAY_ICON_BUFFER } from './trayIcon'
 import { ensureAivaBackendRunning, stopManagedBackend } from './backendManager'
+import { readWidgetEnv } from './readEnvFile'
 
 const KEYTAR_SERVICE = 'Aiva'
 const KEYTAR_ACCOUNT = 'auth-token'
 const KEYTAR_REFRESH_ACCOUNT = 'auth-refresh-token'
+
+function widgetRootFromMain(): string {
+  return path.join(__dirname, '..')
+}
+
+/** When enabled (default), stored JWT is cleared on each app launch so the user must sign in again. */
+function requireLoginOnEachLaunch(env: Record<string, string>): boolean {
+  const v = env.NEXA_REQUIRE_LOGIN_ON_LAUNCH?.trim().toLowerCase()
+  if (v === '0' || v === 'false' || v === 'no') return false
+  return true
+}
+
+async function clearPersistedAuth(): Promise<void> {
+  await keytar.deletePassword(KEYTAR_SERVICE, KEYTAR_ACCOUNT).catch(() => {})
+  await keytar.deletePassword(KEYTAR_SERVICE, KEYTAR_REFRESH_ACCOUNT).catch(() => {})
+}
 
 let zohoWindow: BrowserWindow | null = null
 let zohoReturnPrefix: string | null = null
@@ -529,6 +546,11 @@ if (!gotLock) {
   })
 
   app.whenReady().then(async () => {
+    const widgetEnv = readWidgetEnv(widgetRootFromMain())
+    if (requireLoginOnEachLaunch(widgetEnv)) {
+      await clearPersistedAuth()
+    }
+
     const backend = await ensureAivaBackendRunning()
     if (backend.status === 'failed') {
       console.error(`[aiva-backend] ${backend.reason}`)

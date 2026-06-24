@@ -301,8 +301,10 @@ function feedSseBuffer(
 }
 
 export type SendChatMessageOptions = {
-  /** HAIVA SSE: fired as token deltas arrive (accumulated assistant text). */
+  /** HAIVA / AIVA SSE: fired as token deltas arrive (accumulated assistant text). */
   onHaivaAssistantText?: (accumulated: string) => void
+  /** Abort in-flight stream (Stop button). */
+  signal?: AbortSignal
 }
 
 type HaivaStreamResult = {
@@ -394,12 +396,14 @@ export async function sendChatMessage(
   if (isHalanAgentChatEnabled()) {
     return sendHalanChatMessage(payload, {
       onAssistantText: options?.onHaivaAssistantText,
+      signal: options?.signal,
     })
   }
 
   if (isAivaSessionChatEnabled()) {
     return sendAivaSessionChatMessage(payload, {
       onAssistantText: options?.onHaivaAssistantText,
+      signal: options?.signal,
     })
   }
 

@@ -56,6 +56,7 @@ export function App() {
   const [ratingModalSubmitting, setRatingModalSubmitting] = useState(false)
   /** Mirrors session/local storage so follow-up sends always reuse thread (axios + IPC timing). */
   const conversationIdRef = useRef<string | null>(null)
+  const chatAbortRef = useRef<AbortController | null>(null)
   const chatOpenRef = useRef(chatOpen)
   useEffect(() => {
     chatOpenRef.current = chatOpen
@@ -209,8 +210,16 @@ export function App() {
     if (state === 'authenticated') {
       conversationIdRef.current = getStoredConversationId()
       void applyAssistantCollapsed()
+      return
     }
-  }, [state, applyAssistantCollapsed])
+    if (state === 'unauthenticated') {
+      clearStoredConversationId()
+      conversationIdRef.current = null
+      setMessages([])
+      setChatOpen(false)
+      void applyLoginMode()
+    }
+  }, [state, applyAssistantCollapsed, applyLoginMode])
 
   useEffect(() => {
     if (state !== 'authenticated') return
@@ -291,6 +300,10 @@ export function App() {
 
     const userMsg: ChatMessage = { id: userTempId, role: 'user', content: text }
 
+    chatAbortRef.current?.abort()
+    const abortController = new AbortController()
+    chatAbortRef.current = abortController
+
     setInput('')
     setMessages((m) => (assistantPlaceholder ? [...m, userMsg, assistantPlaceholder] : [...m, userMsg]))
     setLoading(true)
@@ -303,13 +316,14 @@ export function App() {
         },
         streamUi
           ? {
+              signal: abortController.signal,
               onHaivaAssistantText: (acc) => {
                 setMessages((m) =>
                   m.map((x) => (x.id === assistantMsgId ? { ...x, content: acc } : x)),
                 )
               },
             }
-          : undefined,
+          : { signal: abortController.signal },
       )
       if (res.conversation_id) {
         conversationIdRef.current = res.conversation_id
@@ -439,6 +453,18 @@ export function App() {
         setMessages((m) => [...m, { id: crypto.randomUUID(), role: 'assistant', content: reply }])
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        if (streamUi && assistantPlaceholder) {
+          setMessages((m) =>
+            m.map((x) =>
+              x.id === assistantMsgId
+                ? { ...x, content: x.content.trim() || '(Stopped)' }
+                : x,
+            ),
+          )
+        }
+        return
+      }
       const errText = `Error: ${e instanceof Error ? e.message : 'Request failed'}`
       if (streamUi && assistantPlaceholder) {
         setMessages((m) =>
@@ -455,8 +481,15 @@ export function App() {
         ])
       }
     } finally {
+      if (chatAbortRef.current === abortController) {
+        chatAbortRef.current = null
+      }
       setLoading(false)
     }
+  }
+
+  function handleStop() {
+    chatAbortRef.current?.abort()
   }
 
   async function handleThumbUp(messageId: number) {
@@ -573,6 +606,7 @@ export function App() {
               input={input}
               onInputChange={setInput}
               onSend={() => void handleSend()}
+              onStop={handleStop}
               onNewConversation={handleNewConversation}
               onLogout={() => void handleLogout()}
               onCollapseChat={() => setChatOpen(false)}

@@ -61,6 +61,14 @@ function IconLogOut({ className }: { className?: string }) {
   )
 }
 
+function IconStop({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <rect x="6" y="6" width="12" height="12" rx="1.5" />
+    </svg>
+  )
+}
+
 function IconSend({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
@@ -222,6 +230,7 @@ type Props = {
   input: string
   onInputChange: (v: string) => void
   onSend: () => void
+  onStop: () => void
   onNewConversation: () => void
   onLogout: () => void
   onCollapseChat: () => void
@@ -238,6 +247,7 @@ export function ChatPanel({
   input,
   onInputChange,
   onSend,
+  onStop,
   onNewConversation,
   onLogout,
   onCollapseChat,
@@ -385,7 +395,9 @@ export function ChatPanel({
             ]
           })}
 
-          {loading && messages.length > 0 && (
+          {loading &&
+            messages.length > 0 &&
+            messages[messages.length - 1]?.role !== 'assistant' && (
             <div className="mr-auto">
               <TypingIndicator />
             </div>
@@ -405,18 +417,30 @@ export function ChatPanel({
             placeholder="Ask anything…"
             className="no-drag max-h-28 min-h-[2.25rem] flex-1 resize-none border-0 bg-transparent px-2.5 py-2 text-sm leading-relaxed text-slate-900 outline-none placeholder:text-slate-400"
           />
-          <button
-            type="button"
-            onClick={onSend}
-            disabled={!canSend}
-            title="Send (Enter)"
-            className="login-primary-btn mb-0.5 inline-flex h-9 w-9 shrink-0 appearance-none items-center justify-center rounded-xl border border-gochat-dark bg-[#0057A8] text-white shadow-gochat outline-none transition-all hover:bg-gochat-light disabled:cursor-not-allowed disabled:border-slate-300 disabled:!bg-slate-200 disabled:!text-slate-400 disabled:shadow-none"
-          >
-            <IconSend className="h-4 w-4" />
-          </button>
+          {loading ? (
+            <button
+              type="button"
+              onClick={onStop}
+              title="Stop response"
+              aria-label="Stop response"
+              className="login-primary-btn mb-0.5 inline-flex h-9 w-9 shrink-0 appearance-none items-center justify-center rounded-xl border border-rose-700 bg-rose-600 text-white shadow-sm outline-none transition-all hover:bg-rose-500"
+            >
+              <IconStop className="h-3.5 w-3.5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onSend}
+              disabled={!canSend}
+              title="Send (Enter)"
+              className="login-primary-btn mb-0.5 inline-flex h-9 w-9 shrink-0 appearance-none items-center justify-center rounded-xl border border-gochat-dark bg-[#0057A8] text-white shadow-gochat outline-none transition-all hover:bg-gochat-light disabled:cursor-not-allowed disabled:border-slate-300 disabled:!bg-slate-200 disabled:!text-slate-400 disabled:shadow-none"
+            >
+              <IconSend className="h-4 w-4" />
+            </button>
+          )}
         </div>
         <p className="mt-1.5 text-center text-[10px] text-slate-500">
-          Enter to send · Shift+Enter for new line
+          {loading ? 'Stop ends the stream on your side' : 'Enter to send · Shift+Enter for new line'}
         </p>
       </div>
     </motion.div>

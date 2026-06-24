@@ -106,6 +106,11 @@ export async function aivaFetchSessionMessages(sessionId: string): Promise<ChatM
 
 export type SendAivaSessionChatMessageOptions = {
   onAssistantText?: (accumulated: string) => void
+  signal?: AbortSignal
+}
+
+function isAborted(signal?: AbortSignal): boolean {
+  return signal?.aborted === true
 }
 
 function parseTopK(): number {
@@ -133,20 +138,34 @@ export async function sendAivaSessionChatMessage(
     sessionId = await aivaCreateSession()
   }
 
-  const res = await fetchWithAuth(
-    apiUrl(`/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`),
-    {
-      method: 'POST',
-      headers: {
-        Accept: 'text/event-stream',
-        'Content-Type': 'application/json',
+  const signal = options?.signal
+
+  let res: Response
+  try {
+    res = await fetchWithAuth(
+      apiUrl(`/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`),
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'text/event-stream',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message_text: payload.user_message,
+          top_k: parseTopK(),
+        }),
+        signal,
       },
-      body: JSON.stringify({
-        message_text: payload.user_message,
-        top_k: parseTopK(),
-      }),
-    },
-  )
+    )
+  } catch (e) {
+    if (isAborted(signal) || (e instanceof DOMException && e.name === 'AbortError')) {
+      return {
+        response: '(Stopped)',
+        conversation_id: sessionId,
+      }
+    }
+    throw e
+  }
 
   if (!res.ok) {
     throw new Error(await readErrorMessage(res))
@@ -184,55 +203,68 @@ export async function sendAivaSessionChatMessage(
     }
   }
 
-  const reader = res.body?.getReader()
-  if (!reader) {
-    const raw = await res.text()
-    for (const line of raw.split(/\r?\n/)) {
-      if (!line.startsWith('data: ')) continue
-      try {
-        parseEvent(JSON.parse(line.slice(6)) as StreamEvent)
-      } catch {
-        /* ignore */
-      }
-    }
-    if (streamError && !accumulated.trim()) {
-      throw new Error(streamError)
-    }
-    return {
-      response: buildStreamResponse(accumulated, streamError),
-      conversation_id: sessionId,
-      user_message_id: userMessageId,
-      assistant_message_id: assistantMessageId,
-    }
-  }
-
-  const decoder = new TextDecoder()
-  let buffer = ''
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue
-      try {
-        parseEvent(JSON.parse(line.slice(6)) as StreamEvent)
-      } catch {
-        /* ignore malformed SSE */
-      }
-    }
-  }
-
-  if (streamError && !accumulated.trim()) {
-    throw new Error(streamError)
-  }
-
-  return {
+  const finish = (): ChatResponse => ({
     response: buildStreamResponse(accumulated, streamError),
     conversation_id: sessionId,
     user_message_id: userMessageId,
     assistant_message_id: assistantMessageId,
+  })
+
+  try {
+    const reader = res.body?.getReader()
+    if (!reader) {
+      const raw = await res.text()
+      for (const line of raw.split(/\r?\n/)) {
+        if (!line.startsWith('data: ')) continue
+        try {
+          parseEvent(JSON.parse(line.slice(6)) as StreamEvent)
+        } catch {
+          /* ignore */
+        }
+      }
+      if (streamError && !accumulated.trim()) {
+        throw new Error(streamError)
+      }
+      return finish()
+    }
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+    for (;;) {
+      if (isAborted(signal)) {
+        await reader.cancel().catch(() => {})
+        break
+      }
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        try {
+          parseEvent(JSON.parse(line.slice(6)) as StreamEvent)
+        } catch {
+          /* ignore malformed SSE */
+        }
+      }
+    }
+
+    if (streamError && !accumulated.trim()) {
+      throw new Error(streamError)
+    }
+    return finish()
+  } catch (e) {
+    if (isAborted(signal) || (e instanceof DOMException && e.name === 'AbortError')) {
+      if (accumulated.trim()) return finish()
+      return {
+        response: '(Stopped)',
+        conversation_id: sessionId,
+        user_message_id: userMessageId,
+        assistant_message_id: assistantMessageId,
+      }
+    }
+    throw e
   }
 }
 

@@ -197,6 +197,7 @@ async function halanPostMessageStream(
   userMessage: string,
   corpusId: string,
   onAssistantText?: (accumulated: string) => void,
+  signal?: AbortSignal,
 ): Promise<SseAccum> {
   const base = getHalanChatApiBase()
   const headers: Record<string, string> = {
@@ -211,6 +212,7 @@ async function halanPostMessageStream(
     method: 'POST',
     headers,
     body: JSON.stringify({ message: userMessage, corpus_id: corpusId }),
+    signal,
   })
   if (!res.ok) {
     const raw = await res.text()
@@ -247,6 +249,10 @@ async function halanPostMessageStream(
   const dec = new TextDecoder()
   let carry = ''
   for (;;) {
+    if (signal?.aborted) {
+      await reader.cancel().catch(() => {})
+      break
+    }
     const { done, value } = await reader.read()
     if (done) {
       carry = feedSseBuffer(carry, dec.decode(), handlePayload)
@@ -289,6 +295,7 @@ export async function halanSubmitRating(
 
 export type SendHalanChatMessageOptions = {
   onAssistantText?: (accumulated: string) => void
+  signal?: AbortSignal
 }
 
 export async function sendHalanChatMessage(
@@ -307,6 +314,7 @@ export async function sendHalanChatMessage(
       payload.user_message,
       corpusId,
       options?.onAssistantText,
+      options?.signal,
     )
     const finalId = stream.streamConversationId?.trim() || conversationId
     const reply = stream.text.trim() || '(Empty reply from stream.)'
