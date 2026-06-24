@@ -8,6 +8,7 @@ import { BrandLogo } from '@/components/BrandLogo'
 import { Toast } from '@/components/Toast'
 import { WindowChromeButtons } from '@/components/WindowChromeButtons'
 import type { ChatMessage } from '@/types/api'
+import type { AccountUpdate } from '@/services/accountUpdatesClient'
 import {
   assistantMarkdownSanitizeSchema,
   enhanceAssistantMarkdown,
@@ -33,6 +34,25 @@ function IconNewChat({ className }: { className?: string }) {
     >
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       <path d="M12 7v6M9 10h6" />
+    </svg>
+  )
+}
+
+/** Bell — account updates */
+function IconUpdates({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
   )
 }
@@ -239,6 +259,9 @@ type Props = {
   onThumbUp?: (messageId: number) => void
   onThumbDown?: (messageId: number) => void
   historyLoading?: boolean
+  activeUpdateCount?: number
+  accountUpdates?: AccountUpdate[]
+  onViewUpdates?: () => void
 }
 
 export function ChatPanel({
@@ -256,6 +279,9 @@ export function ChatPanel({
   onThumbUp = () => {},
   onThumbDown = () => {},
   historyLoading = false,
+  activeUpdateCount = 0,
+  accountUpdates = [],
+  onViewUpdates = () => {},
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -292,6 +318,23 @@ export function ChatPanel({
           </div>
         </div>
         <div className="no-drag flex shrink-0 items-center gap-0.5">
+          {activeUpdateCount > 0 && (
+            <button
+              type="button"
+              onClick={onViewUpdates}
+              title={`${activeUpdateCount} account update${activeUpdateCount === 1 ? '' : 's'}`}
+              aria-label={`View ${activeUpdateCount} account update${activeUpdateCount === 1 ? '' : 's'}`}
+              className={`${headerIconBtn} relative border-amber-400 bg-amber-50 text-amber-800 hover:border-amber-500 hover:bg-amber-100 hover:text-amber-900`}
+            >
+              <IconUpdates className="h-[18px] w-[18px] shrink-0" />
+              <span
+                className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white"
+                aria-hidden
+              >
+                {activeUpdateCount > 9 ? '9+' : activeUpdateCount}
+              </span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onNewConversation}
@@ -332,6 +375,32 @@ export function ChatPanel({
 
           {!historyLoading && messages.length === 0 && !loading && (
             <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
+              {accountUpdates.length > 0 && (
+                <div className="mb-4 w-full max-w-[18rem] space-y-2 text-left">
+                  {accountUpdates.slice(0, 3).map((u) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={onViewUpdates}
+                      className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-left transition-colors hover:border-amber-300 hover:bg-amber-100/80"
+                    >
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                        New update{u.account_name ? ` · ${u.account_name}` : ''}
+                      </p>
+                      <p className="mt-0.5 truncate text-sm font-medium text-slate-900">{u.title}</p>
+                    </button>
+                  ))}
+                  {activeUpdateCount > 3 && (
+                    <button
+                      type="button"
+                      onClick={onViewUpdates}
+                      className="w-full text-xs font-medium text-gochat hover:underline"
+                    >
+                      View {activeUpdateCount - 3} more update{activeUpdateCount - 3 === 1 ? '' : 's'}
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="mb-3 flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border-2 border-widget-strong bg-white p-1.5 shadow-sm">
                 <BrandLogo className="h-full w-full object-contain" alt="" />
               </div>

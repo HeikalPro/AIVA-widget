@@ -6,6 +6,7 @@ import { LoginForm } from '@/components/LoginForm'
 import { ZohoCallbackView } from '@/components/ZohoCallbackView'
 import { isZohoCallbackRoute } from '@/services/zohoAuth'
 import { MessageFeedbackModal } from '@/components/MessageFeedbackModal'
+import { AccountUpdatePopup } from '@/components/AccountUpdatePopup'
 import { Toast } from '@/components/Toast'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -36,6 +37,11 @@ import {
   setStoredConversationId,
 } from '@/services/conversation'
 import type { ChatMessage } from '@/types/api'
+import {
+  fetchActiveAccountUpdates,
+  resolveWidgetAccountId,
+  type AccountUpdate,
+} from '@/services/accountUpdatesClient'
 
 export function App() {
   const { state, setAuthenticated, logout } = useAuth()
@@ -54,10 +60,14 @@ export function App() {
   const [rateDownMessageId, setRateDownMessageId] = useState<number | null>(null)
   const [rateDownInitialFeedback, setRateDownInitialFeedback] = useState<string>('')
   const [ratingModalSubmitting, setRatingModalSubmitting] = useState(false)
+  const [accountId, setAccountId] = useState<number | null>(null)
+  const [activeUpdates, setActiveUpdates] = useState<AccountUpdate[]>([])
+  const [updatePopupOpen, setUpdatePopupOpen] = useState(false)
   /** Mirrors session/local storage so follow-up sends always reuse thread (axios + IPC timing). */
   const conversationIdRef = useRef<string | null>(null)
   const chatAbortRef = useRef<AbortController | null>(null)
   const chatOpenRef = useRef(chatOpen)
+  const shownLoginUpdatesPopupRef = useRef(false)
   useEffect(() => {
     chatOpenRef.current = chatOpen
   }, [chatOpen])
@@ -129,6 +139,83 @@ export function App() {
       cancelled = true
     }
   }, [state])
+
+  const refreshAccountUpdates = useCallback(async (aid?: number | null) => {
+    const resolvedId = aid ?? accountId ?? (await resolveWidgetAccountId())
+    if (!resolvedId) {
+      setActiveUpdates([])
+      return
+    }
+    setAccountId(resolvedId)
+    try {
+      const active = await fetchActiveAccountUpdates(resolvedId)
+      setActiveUpdates(active)
+    } catch (e) {
+      if (import.meta.env.DEV) {
+        console.warn('[account-updates] fetch failed:', e)
+      }
+      setActiveUpdates([])
+    }
+  }, [accountId])
+
+  useEffect(() => {
+    if (state !== 'authenticated') {
+      shownLoginUpdatesPopupRef.current = false
+      setAccountId(null)
+      setActiveUpdates([])
+      setUpdatePopupOpen(false)
+      return
+    }
+
+    let cancelled = false
+    void (async () => {
+      const aid = await resolveWidgetAccountId()
+      if (cancelled || !aid) return
+      try {
+        const active = await fetchActiveAccountUpdates(aid)
+        if (cancelled) return
+        setAccountId(aid)
+        setActiveUpdates(active)
+        if (active.length > 0 && !shownLoginUpdatesPopupRef.current) {
+          shownLoginUpdatesPopupRef.current = true
+          setChatOpen(true)
+          setUpdatePopupOpen(true)
+        }
+      } catch (e) {
+        if (!cancelled && import.meta.env.DEV) {
+          console.warn('[account-updates] fetch failed:', e)
+        }
+        if (!cancelled) setActiveUpdates([])
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [state])
+
+  useEffect(() => {
+    if (state !== 'authenticated' || !chatOpen) return
+    void refreshAccountUpdates()
+  }, [state, chatOpen, refreshAccountUpdates])
+
+  useEffect(() => {
+    if (state !== 'authenticated') return
+    const timer = window.setInterval(() => {
+      void refreshAccountUpdates()
+    }, 120_000)
+    return () => window.clearInterval(timer)
+  }, [state, refreshAccountUpdates])
+
+  function handleDismissUpdates() {
+    setUpdatePopupOpen(false)
+  }
+
+  function handleViewUpdates() {
+    if (activeUpdates.length > 0) {
+      setUpdatePopupOpen(true)
+    }
+  }
 
   const applyAssistantCollapsed = useCallback(async () => {
     const cur = await window.nexa.window.getBounds()
@@ -544,6 +631,7 @@ export function App() {
     clearStoredConversationId()
     conversationIdRef.current = null
     setMessages([])
+    setUpdatePopupOpen(false)
     setAuthenticated()
   }
 
@@ -619,6 +707,9 @@ export function App() {
                 setRateDownMessageId(id)
               }}
               historyLoading={historyLoading}
+              activeUpdateCount={activeUpdates.length}
+              accountUpdates={activeUpdates}
+              onViewUpdates={handleViewUpdates}
             />
             <MessageFeedbackModal
               open={rateDownMessageId != null}
@@ -637,10 +728,15 @@ export function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <FloatingWidget onOpen={() => setChatOpen(true)} />
+            <FloatingWidget onOpen={() => setChatOpen(true)} activeUpdateCount={activeUpdates.length} />
           </motion.div>
         )}
       </AnimatePresence>
+      <AccountUpdatePopup
+        open={updatePopupOpen && activeUpdates.length > 0}
+        updates={activeUpdates}
+        onDismiss={handleDismissUpdates}
+      />
     </div>
   )
 }

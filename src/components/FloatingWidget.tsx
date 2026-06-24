@@ -5,6 +5,7 @@ import { ASSISTANT_BUBBLE_PX } from '@/services/chatWindowSize'
 
 type Props = {
   onOpen: () => void
+  activeUpdateCount?: number
 }
 /** Pixels of movement before a drag starts (avoids moving the window on small click jitter). */
 const DRAG_SLOP_PX = 6
@@ -25,7 +26,7 @@ type DragState = {
  * `setPointerCapture` synchronously, then attach window listeners so moves still
  * arrive when the window is repositioned under the cursor (Windows).
  */
-export function FloatingWidget({ onOpen }: Props) {
+export function FloatingWidget({ onOpen, activeUpdateCount = 0 }: Props) {
   const dragRef = useRef<DragState | null>(null)
 
   const applyCollapsedPosition = useCallback((screenX: number, screenY: number, d: DragState) => {
@@ -150,6 +151,11 @@ export function FloatingWidget({ onOpen }: Props) {
         aria-hidden
       >
         <BrandLogo className="h-full w-full rounded-full object-contain" />
+        {activeUpdateCount > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white">
+            {activeUpdateCount > 9 ? '9+' : activeUpdateCount}
+          </span>
+        )}
       </div>
     </motion.div>
   )
