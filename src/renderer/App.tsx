@@ -500,6 +500,7 @@ export function App() {
                   id: aid != null ? `aiva-${aid}` : x.id,
                   messageId: aid ?? x.messageId,
                   content: replyText,
+                  sources: res.sources,
                 }
               }
               return x
@@ -521,6 +522,7 @@ export function App() {
               messageId: aid,
               role: 'assistant',
               content: replyText,
+              sources: res.sources,
             },
           ])
         }

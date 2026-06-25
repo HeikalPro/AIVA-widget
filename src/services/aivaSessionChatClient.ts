@@ -1,5 +1,5 @@
 import { fetchWithAuth } from '@/services/aivaAuthFetch'
-import type { ChatMessage, ChatRequest, ChatResponse } from '@/types/api'
+import type { ChatMessage, ChatRequest, ChatResponse, KbSource } from '@/types/api'
 
 /** AIVA-V2 session RAG chat (`/api/chat/*`). Enable with `VITE_USE_AIVA_SESSION_CHAT=1`. */
 export function isAivaSessionChatEnabled(): boolean {
@@ -17,6 +17,7 @@ type AivaMessageOut = {
   message_text: string
   rating?: 'up' | 'down' | null
   feedback?: string | null
+  sources?: KbSource[]
 }
 
 function getApiBase(): string {
@@ -56,6 +57,7 @@ export function aivaMessageRowToChatMessage(m: AivaMessageOut): ChatMessage {
     content: m.message_text,
     rating: m.rating ?? undefined,
     feedback: m.feedback ?? undefined,
+    sources: m.sources?.length ? m.sources : undefined,
   }
 }
 
@@ -175,6 +177,7 @@ export async function sendAivaSessionChatMessage(
   let streamError: string | undefined
   let userMessageId: number | undefined
   let assistantMessageId: number | undefined
+  let sources: KbSource[] | undefined
   const bump = (delta: string) => {
     accumulated += delta
     options?.onAssistantText?.(accumulated)
@@ -186,6 +189,7 @@ export async function sendAivaSessionChatMessage(
     message?: string
     user_message_id?: number
     assistant_message_id?: number
+    sources?: KbSource[]
   }
 
   const parseEvent = (ev: StreamEvent) => {
@@ -200,6 +204,7 @@ export async function sendAivaSessionChatMessage(
     if (ev.type === 'done') {
       if (typeof ev.user_message_id === 'number') userMessageId = ev.user_message_id
       if (typeof ev.assistant_message_id === 'number') assistantMessageId = ev.assistant_message_id
+      if (Array.isArray(ev.sources) && ev.sources.length > 0) sources = ev.sources
     }
   }
 
@@ -208,6 +213,7 @@ export async function sendAivaSessionChatMessage(
     conversation_id: sessionId,
     user_message_id: userMessageId,
     assistant_message_id: assistantMessageId,
+    sources,
   })
 
   try {
@@ -262,6 +268,7 @@ export async function sendAivaSessionChatMessage(
         conversation_id: sessionId,
         user_message_id: userMessageId,
         assistant_message_id: assistantMessageId,
+        sources,
       }
     }
     throw e

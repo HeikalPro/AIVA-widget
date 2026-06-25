@@ -18,12 +18,18 @@ export type ChatRequest = {
   model_provider?: string
 }
 
+export type KbSource = {
+  parent_id: string
+  url: string
+}
+
 export type ChatResponse = {
   response: string
   conversation_id: string
   /** halan_agent_chat: from non-stream POST or SSE `phase: done`. */
   user_message_id?: number
   assistant_message_id?: number
+  sources?: KbSource[]
 }
 
 export type MessageRating = 'up' | 'down'
@@ -38,4 +44,6 @@ export type ChatMessage = {
   /** From GET history or after successful rating. */
   rating?: MessageRating | null
   feedback?: string | null
+  /** KB article links (external_parent_id) for assistant replies. */
+  sources?: KbSource[]
 }

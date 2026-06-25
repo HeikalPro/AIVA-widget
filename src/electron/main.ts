@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, shell, Tray } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import keytar from 'keytar'
@@ -199,6 +199,36 @@ function resolveElectronIconPath(): string | undefined {
   return undefined
 }
 
+function isExternalHttpUrl(url: string): boolean {
+  try {
+    const u = new URL(url)
+    return u.protocol === 'http:' || u.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+/** Open http(s) links in the default browser — not a new Electron (Nexa) window. */
+function attachExternalLinkHandlers(win: BrowserWindow) {
+  const wc = win.webContents
+  wc.setWindowOpenHandler(({ url }) => {
+    if (isExternalHttpUrl(url)) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  wc.on('will-navigate', (event, url) => {
+    if (!isExternalHttpUrl(url)) return
+    let sameOrigin = false
+    try {
+      sameOrigin = new URL(url).origin === new URL(wc.getURL()).origin
+    } catch {
+      /* open externally */
+    }
+    if (sameOrigin) return
+    event.preventDefault()
+    void shell.openExternal(url)
+  })
+}
+
 function createWindow() {
   const iconPath = resolveElectronIconPath()
   const devUrl = process.env.VITE_DEV_SERVER_URL
@@ -227,6 +257,8 @@ function createWindow() {
       webSecurity: isDev,
     },
   })
+
+  attachExternalLinkHandlers(mainWindow)
 
   if (devUrl) {
     void mainWindow.loadURL(devUrl)

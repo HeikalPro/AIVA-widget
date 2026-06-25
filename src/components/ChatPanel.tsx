@@ -7,7 +7,7 @@ import remarkGfm from 'remark-gfm'
 import { BrandLogo } from '@/components/BrandLogo'
 import { Toast } from '@/components/Toast'
 import { WindowChromeButtons } from '@/components/WindowChromeButtons'
-import type { ChatMessage } from '@/types/api'
+import type { ChatMessage, KbSource } from '@/types/api'
 import type { AccountUpdate } from '@/services/accountUpdatesClient'
 import {
   assistantMarkdownSanitizeSchema,
@@ -110,6 +110,27 @@ function ThumbDownIcon({ className }: { className?: string }) {
     <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z" />
     </svg>
+  )
+}
+
+function MessageKbSources({ sources }: { sources: KbSource[] }) {
+  if (!sources.length) return null
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Sources</span>
+      {sources.map((s) => (
+        <a
+          key={s.parent_id}
+          href={s.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={s.url}
+          className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-gochat underline-offset-2 hover:bg-slate-50 hover:underline"
+        >
+          {s.parent_id}
+        </a>
+      ))}
+    </div>
   )
 }
 
@@ -450,15 +471,18 @@ export function ChatPanel({
                     </ReactMarkdown>
                   </div>
                 </div>
-                <div className="mt-1.5 flex w-full flex-wrap items-center gap-2">
-                  <CopyFormatControls content={m.content} />
-                  <MessageRatingControls
-                    message={m}
-                    ratingsEnabled={ratingsEnabled}
-                    ratingBusyId={ratingBusyId}
-                    onThumbUp={onThumbUp}
-                    onThumbDown={onThumbDown}
-                  />
+                <div className="mt-1.5 flex w-full flex-col gap-1.5">
+                  {m.sources && m.sources.length > 0 && <MessageKbSources sources={m.sources} />}
+                  <div className="flex w-full flex-wrap items-center gap-2">
+                    <CopyFormatControls content={m.content} />
+                    <MessageRatingControls
+                      message={m}
+                      ratingsEnabled={ratingsEnabled}
+                      ratingBusyId={ratingBusyId}
+                      onThumbUp={onThumbUp}
+                      onThumbDown={onThumbDown}
+                    />
+                  </div>
                 </div>
               </div>,
             ]
