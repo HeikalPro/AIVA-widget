@@ -113,21 +113,37 @@ function ThumbDownIcon({ className }: { className?: string }) {
   )
 }
 
+function IconExternalLink({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  )
+}
+
 function MessageKbSources({ sources }: { sources: KbSource[] }) {
   if (!sources.length) return null
+  const sourceBtnClass =
+    'no-drag inline-flex items-center gap-1.5 rounded-full border border-gochat/30 bg-[#0057A8]/10 px-3 py-1.5 text-[11px] font-semibold text-[#0057A8] shadow-sm transition-colors hover:border-gochat hover:bg-[#0057A8] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gochat/40'
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Sources</span>
+    <div className="flex w-full flex-wrap items-center gap-2 rounded-xl border border-dashed border-gochat/25 bg-gochat/[0.04] px-2.5 py-2">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">KB source</span>
       {sources.map((s) => (
         <a
           key={s.parent_id}
           href={s.url}
           target="_blank"
           rel="noopener noreferrer"
-          title={s.url}
-          className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-gochat underline-offset-2 hover:bg-slate-50 hover:underline"
+          title={`Open knowledge base article #${s.parent_id}\n${s.url}`}
+          className={`${sourceBtnClass} group`}
         >
-          {s.parent_id}
+          <IconExternalLink className="shrink-0 opacity-90" />
+          <span>Open article</span>
+          <span className="rounded-md bg-white/80 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-gochat group-hover:bg-white/20 group-hover:text-white">
+            #{s.parent_id}
+          </span>
         </a>
       ))}
     </div>
