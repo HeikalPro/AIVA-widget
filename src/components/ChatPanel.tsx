@@ -296,7 +296,10 @@ type Props = {
   onThumbUp?: (messageId: number) => void
   onThumbDown?: (messageId: number) => void
   historyLoading?: boolean
+  /** Total active announcements — bell shows when this is > 0. */
   activeUpdateCount?: number
+  /** Unread/dismissed-pending count — badge prefers this when > 0. */
+  unseenUpdateCount?: number
   accountUpdates?: AccountUpdate[]
   onViewUpdates?: () => void
 }
@@ -317,9 +320,12 @@ export function ChatPanel({
   onThumbDown = () => {},
   historyLoading = false,
   activeUpdateCount = 0,
+  unseenUpdateCount = 0,
   accountUpdates = [],
   onViewUpdates = () => {},
 }: Props) {
+  const updateBadgeCount =
+    activeUpdateCount > 0 ? (unseenUpdateCount > 0 ? unseenUpdateCount : activeUpdateCount) : 0
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -359,7 +365,7 @@ export function ChatPanel({
             <button
               type="button"
               onClick={onViewUpdates}
-              title={`${activeUpdateCount} account update${activeUpdateCount === 1 ? '' : 's'}`}
+              title={`${activeUpdateCount} account update${activeUpdateCount === 1 ? '' : 's'}${unseenUpdateCount > 0 ? ` (${unseenUpdateCount} new)` : ''}`}
               aria-label={`View ${activeUpdateCount} account update${activeUpdateCount === 1 ? '' : 's'}`}
               className={`${headerIconBtn} relative border-amber-400 bg-amber-50 text-amber-800 hover:border-amber-500 hover:bg-amber-100 hover:text-amber-900`}
             >
@@ -368,7 +374,7 @@ export function ChatPanel({
                 className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white"
                 aria-hidden
               >
-                {activeUpdateCount > 9 ? '9+' : activeUpdateCount}
+                {updateBadgeCount > 9 ? '9+' : updateBadgeCount}
               </span>
             </button>
           )}

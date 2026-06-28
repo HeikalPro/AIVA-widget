@@ -72,3 +72,31 @@ export async function resolveWidgetAccountId(): Promise<number | null> {
     return null
   }
 }
+
+const SEEN_UPDATES_PREFIX = 'nexa-seen-account-updates:'
+
+export function loadSeenAccountUpdateIds(accountId: number): Set<number> {
+  try {
+    const raw = sessionStorage.getItem(`${SEEN_UPDATES_PREFIX}${accountId}`)
+    if (!raw) return new Set()
+    const arr = JSON.parse(raw) as unknown
+    if (!Array.isArray(arr)) return new Set()
+    return new Set(arr.filter((x): x is number => typeof x === 'number'))
+  } catch {
+    return new Set()
+  }
+}
+
+export function markAccountUpdatesSeen(accountId: number, updateIds: number[]): void {
+  const seen = loadSeenAccountUpdateIds(accountId)
+  for (const id of updateIds) seen.add(id)
+  sessionStorage.setItem(`${SEEN_UPDATES_PREFIX}${accountId}`, JSON.stringify([...seen]))
+}
+
+export function filterUnseenAccountUpdates(
+  accountId: number,
+  updates: AccountUpdate[],
+): AccountUpdate[] {
+  const seen = loadSeenAccountUpdateIds(accountId)
+  return updates.filter((u) => !seen.has(u.id))
+}

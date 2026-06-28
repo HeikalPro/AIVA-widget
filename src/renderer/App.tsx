@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChatPanel } from '@/components/ChatPanel'
 import { FloatingWidget } from '@/components/FloatingWidget'
@@ -39,9 +39,14 @@ import {
 import type { ChatMessage } from '@/types/api'
 import {
   fetchActiveAccountUpdates,
+  filterUnseenAccountUpdates,
+  markAccountUpdatesSeen,
   resolveWidgetAccountId,
   type AccountUpdate,
 } from '@/services/accountUpdatesClient'
+
+/** Poll for new account announcements while logged in. */
+const ACCOUNT_UPDATES_POLL_MS = 30_000
 
 export function App() {
   const { state, setAuthenticated, logout } = useAuth()
@@ -62,12 +67,12 @@ export function App() {
   const [ratingModalSubmitting, setRatingModalSubmitting] = useState(false)
   const [accountId, setAccountId] = useState<number | null>(null)
   const [activeUpdates, setActiveUpdates] = useState<AccountUpdate[]>([])
+  const [popupUpdates, setPopupUpdates] = useState<AccountUpdate[]>([])
   const [updatePopupOpen, setUpdatePopupOpen] = useState(false)
   /** Mirrors session/local storage so follow-up sends always reuse thread (axios + IPC timing). */
   const conversationIdRef = useRef<string | null>(null)
   const chatAbortRef = useRef<AbortController | null>(null)
   const chatOpenRef = useRef(chatOpen)
-  const shownLoginUpdatesPopupRef = useRef(false)
   useEffect(() => {
     chatOpenRef.current = chatOpen
   }, [chatOpen])
@@ -140,7 +145,12 @@ export function App() {
     }
   }, [state])
 
-  const refreshAccountUpdates = useCallback(async (aid?: number | null) => {
+  const unseenUpdates = useMemo(() => {
+    if (accountId == null) return activeUpdates
+    return filterUnseenAccountUpdates(accountId, activeUpdates)
+  }, [accountId, activeUpdates])
+
+  const refreshAccountUpdates = useCallback(async (aid?: number | null, opts?: { showPopupIfNew?: boolean }) => {
     const resolvedId = aid ?? accountId ?? (await resolveWidgetAccountId())
     if (!resolvedId) {
       setActiveUpdates([])
@@ -150,6 +160,15 @@ export function App() {
     try {
       const active = await fetchActiveAccountUpdates(resolvedId)
       setActiveUpdates(active)
+      const showPopup = opts?.showPopupIfNew !== false
+      if (showPopup && active.length > 0) {
+        const unseen = filterUnseenAccountUpdates(resolvedId, active)
+        if (unseen.length > 0) {
+          setPopupUpdates(unseen)
+          setChatOpen(true)
+          setUpdatePopupOpen(true)
+        }
+      }
     } catch (e) {
       if (import.meta.env.DEV) {
         console.warn('[account-updates] fetch failed:', e)
@@ -160,59 +179,57 @@ export function App() {
 
   useEffect(() => {
     if (state !== 'authenticated') {
-      shownLoginUpdatesPopupRef.current = false
       setAccountId(null)
       setActiveUpdates([])
+      setPopupUpdates([])
       setUpdatePopupOpen(false)
       return
     }
 
-    let cancelled = false
-    void (async () => {
-      const aid = await resolveWidgetAccountId()
-      if (cancelled || !aid) return
-      try {
-        const active = await fetchActiveAccountUpdates(aid)
-        if (cancelled) return
-        setAccountId(aid)
-        setActiveUpdates(active)
-        if (active.length > 0 && !shownLoginUpdatesPopupRef.current) {
-          shownLoginUpdatesPopupRef.current = true
-          setChatOpen(true)
-          setUpdatePopupOpen(true)
-        }
-      } catch (e) {
-        if (!cancelled && import.meta.env.DEV) {
-          console.warn('[account-updates] fetch failed:', e)
-        }
-        if (!cancelled) setActiveUpdates([])
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [state])
+    void refreshAccountUpdates(undefined, { showPopupIfNew: true })
+  }, [state, refreshAccountUpdates])
 
   useEffect(() => {
     if (state !== 'authenticated' || !chatOpen) return
-    void refreshAccountUpdates()
+    void refreshAccountUpdates(undefined, { showPopupIfNew: false })
   }, [state, chatOpen, refreshAccountUpdates])
 
   useEffect(() => {
     if (state !== 'authenticated') return
     const timer = window.setInterval(() => {
-      void refreshAccountUpdates()
-    }, 120_000)
+      void refreshAccountUpdates(undefined, { showPopupIfNew: true })
+    }, ACCOUNT_UPDATES_POLL_MS)
     return () => window.clearInterval(timer)
+  }, [state, refreshAccountUpdates])
+
+  useEffect(() => {
+    if (state !== 'authenticated') return
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshAccountUpdates(undefined, { showPopupIfNew: true })
+      }
+    }
+    window.addEventListener('focus', onVisible)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('focus', onVisible)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [state, refreshAccountUpdates])
 
   function handleDismissUpdates() {
     setUpdatePopupOpen(false)
+    if (accountId != null && popupUpdates.length > 0) {
+      markAccountUpdatesSeen(
+        accountId,
+        popupUpdates.map((u) => u.id),
+      )
+    }
   }
 
   function handleViewUpdates() {
     if (activeUpdates.length > 0) {
+      setPopupUpdates(activeUpdates)
       setUpdatePopupOpen(true)
     }
   }
@@ -710,6 +727,7 @@ export function App() {
               }}
               historyLoading={historyLoading}
               activeUpdateCount={activeUpdates.length}
+              unseenUpdateCount={unseenUpdates.length}
               accountUpdates={activeUpdates}
               onViewUpdates={handleViewUpdates}
             />
@@ -730,13 +748,22 @@ export function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <FloatingWidget onOpen={() => setChatOpen(true)} activeUpdateCount={activeUpdates.length} />
+            <FloatingWidget
+              onOpen={() => setChatOpen(true)}
+              activeUpdateCount={
+                activeUpdates.length > 0
+                  ? unseenUpdates.length > 0
+                    ? unseenUpdates.length
+                    : activeUpdates.length
+                  : 0
+              }
+            />
           </motion.div>
         )}
       </AnimatePresence>
       <AccountUpdatePopup
-        open={updatePopupOpen && activeUpdates.length > 0}
-        updates={activeUpdates}
+        open={updatePopupOpen && popupUpdates.length > 0}
+        updates={popupUpdates}
         onDismiss={handleDismissUpdates}
       />
     </div>
