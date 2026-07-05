@@ -5,6 +5,7 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { BrandLogo } from '@/components/BrandLogo'
+import { InstallmentCalculatorPanel } from '@/components/InstallmentCalculatorPanel'
 import { Toast } from '@/components/Toast'
 import { WindowChromeButtons } from '@/components/WindowChromeButtons'
 import type { ChatMessage, KbSource } from '@/types/api'
@@ -34,6 +35,25 @@ function IconNewChat({ className }: { className?: string }) {
     >
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       <path d="M12 7v6M9 10h6" />
+    </svg>
+  )
+}
+
+/** Calculator */
+function IconCalculator({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="4" y="2" width="16" height="20" rx="2" />
+      <path d="M8 6h8M8 10h2M12 10h2M16 10h0M8 14h2M12 14h2M16 14h0M8 18h2M12 18h4" />
     </svg>
   )
 }
@@ -324,6 +344,7 @@ export function ChatPanel({
   accountUpdates = [],
   onViewUpdates = () => {},
 }: Props) {
+  const [calculatorOpen, setCalculatorOpen] = useState(false)
   const updateBadgeCount =
     activeUpdateCount > 0 ? (unseenUpdateCount > 0 ? unseenUpdateCount : activeUpdateCount) : 0
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -380,8 +401,18 @@ export function ChatPanel({
           )}
           <button
             type="button"
+            onClick={() => setCalculatorOpen((open) => !open)}
+            title={calculatorOpen ? 'Back to chat' : 'Installment calculator'}
+            aria-label={calculatorOpen ? 'Back to chat' : 'Open installment calculator'}
+            aria-pressed={calculatorOpen}
+            className={`${headerIconBtn} ${calculatorOpen ? 'border-gochat bg-gochat/10 text-gochat' : ''}`}
+          >
+            <IconCalculator className="h-[18px] w-[18px] shrink-0" />
+          </button>
+          <button
+            type="button"
             onClick={onNewConversation}
-            disabled={loading}
+            disabled={loading || calculatorOpen}
             title="New chat"
             aria-label="Start new chat"
             className={headerIconBtn}
@@ -407,6 +438,9 @@ export function ChatPanel({
         </div>
       </header>
 
+      {calculatorOpen ? (
+        <InstallmentCalculatorPanel onClose={() => setCalculatorOpen(false)} />
+      ) : (
       <div className="no-drag relative min-h-0 flex-1 overflow-y-auto bg-white px-3.5 py-3 [scrollbar-color:rgba(148,163,184,0.6)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent">
         <div className="relative space-y-3">
           {historyLoading && (
@@ -521,7 +555,9 @@ export function ChatPanel({
           <div ref={bottomRef} />
         </div>
       </div>
+      )}
 
+      {!calculatorOpen && (
       <div className="no-drag shrink-0 border-t border-widget-strong bg-white px-3 pb-3 pt-2.5">
         <div className="flex items-end gap-2 rounded-2xl border border-slate-400 bg-white p-1.5 shadow-sm focus-within:border-gochat focus-within:outline-none">
           <textarea
@@ -558,6 +594,7 @@ export function ChatPanel({
           {loading ? 'Stop ends the stream on your side' : 'Enter to send · Shift+Enter for new line'}
         </p>
       </div>
+      )}
     </motion.div>
   )
 }
