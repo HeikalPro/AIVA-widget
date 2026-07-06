@@ -136,8 +136,11 @@ export function assertApiBaseUrl(): void {
     return
   }
   if (isAivaSessionChatEnabled()) {
-    if (!import.meta.env.VITE_API_BASE_URL?.trim()) {
+    const base = import.meta.env.VITE_API_BASE_URL?.trim()
+    if (!base) {
       console.warn('AIVA session chat: VITE_API_BASE_URL is not set (e.g. http://127.0.0.1:8000).')
+    } else if (import.meta.env.DEV) {
+      console.info(`AIVA session chat enabled → ${base.replace(/\/$/, '')}`)
     }
     if (!import.meta.env.VITE_AIVA_ACCOUNT_ID?.trim()) {
       console.info(
@@ -305,6 +308,8 @@ export type SendChatMessageOptions = {
   onHaivaAssistantText?: (accumulated: string) => void
   /** Abort in-flight stream (Stop button). */
   signal?: AbortSignal
+  accountId?: number
+  activeQueues?: string[]
 }
 
 type HaivaStreamResult = {
@@ -404,6 +409,8 @@ export async function sendChatMessage(
     return sendAivaSessionChatMessage(payload, {
       onAssistantText: options?.onHaivaAssistantText,
       signal: options?.signal,
+      accountId: options?.accountId,
+      activeQueues: options?.activeQueues,
     })
   }
 

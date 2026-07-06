@@ -83,12 +83,48 @@ async function resolveAccountId(): Promise<number> {
   return accounts[0].id
 }
 
-export async function aivaCreateSession(accountId?: number): Promise<string> {
+export type AivaQueueAccess = {
+  account_id: number
+  available_queues: { key: string; label: string }[]
+  allowed_queues: string[]
+  default_active_queues: string[]
+}
+
+export async function aivaFetchQueueAccess(accountId: number): Promise<AivaQueueAccess> {
+  const res = await fetchWithAuth(
+    apiUrl(`/api/chat/queue-access?account_id=${accountId}`),
+    { headers: { Accept: 'application/json' } },
+  )
+  if (!res.ok) throw new Error(await readErrorMessage(res))
+  return (await res.json()) as AivaQueueAccess
+}
+
+export async function aivaUpdateSessionQueues(
+  sessionId: string,
+  activeQueues: string[],
+): Promise<void> {
+  const res = await fetchWithAuth(
+    apiUrl(`/api/chat/sessions/${encodeURIComponent(sessionId)}/queues`),
+    {
+      method: 'PATCH',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active_queues: activeQueues }),
+    },
+  )
+  if (!res.ok) throw new Error(await readErrorMessage(res))
+}
+
+export async function aivaCreateSession(
+  accountId?: number,
+  activeQueues?: string[],
+): Promise<string> {
   const aid = accountId ?? (await resolveAccountId())
+  const body: { account_id: number; active_queues?: string[] } = { account_id: aid }
+  if (activeQueues?.length) body.active_queues = activeQueues
   const res = await fetchWithAuth(apiUrl('/api/chat/sessions'), {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ account_id: aid }),
+    body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(await readErrorMessage(res))
   const data = (await res.json()) as AivaSessionOut
@@ -109,6 +145,8 @@ export async function aivaFetchSessionMessages(sessionId: string): Promise<ChatM
 export type SendAivaSessionChatMessageOptions = {
   onAssistantText?: (accumulated: string) => void
   signal?: AbortSignal
+  accountId?: number
+  activeQueues?: string[]
 }
 
 function isAborted(signal?: AbortSignal): boolean {
@@ -137,7 +175,7 @@ export async function sendAivaSessionChatMessage(
 ): Promise<ChatResponse> {
   let sessionId = payload.conversation_id?.trim() ?? ''
   if (!sessionId) {
-    sessionId = await aivaCreateSession()
+    sessionId = await aivaCreateSession(options?.accountId, options?.activeQueues)
   }
 
   const signal = options?.signal

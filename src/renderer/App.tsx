@@ -18,8 +18,11 @@ import {
 } from '@/services/api'
 import {
   aivaCreateSession,
+  aivaFetchQueueAccess,
   aivaFetchSessionMessages,
   aivaSubmitRating,
+  aivaUpdateSessionQueues,
+  type AivaQueueAccess,
 } from '@/services/aivaSessionChatClient'
 import {
   halanFetchMessages,
@@ -66,6 +69,8 @@ export function App() {
   const [rateDownInitialFeedback, setRateDownInitialFeedback] = useState<string>('')
   const [ratingModalSubmitting, setRatingModalSubmitting] = useState(false)
   const [accountId, setAccountId] = useState<number | null>(null)
+  const [queueAccess, setQueueAccess] = useState<AivaQueueAccess | null>(null)
+  const [selectedQueues, setSelectedQueues] = useState<string[]>([])
   const [activeUpdates, setActiveUpdates] = useState<AccountUpdate[]>([])
   const [popupUpdates, setPopupUpdates] = useState<AccountUpdate[]>([])
   const [updatePopupOpen, setUpdatePopupOpen] = useState(false)
@@ -154,32 +159,69 @@ export function App() {
     const resolvedId = aid ?? accountId ?? (await resolveWidgetAccountId())
     if (!resolvedId) {
       setActiveUpdates([])
+      setQueueAccess(null)
       return
     }
     setAccountId(resolvedId)
-    try {
-      const active = await fetchActiveAccountUpdates(resolvedId)
-      setActiveUpdates(active)
-      const showPopup = opts?.showPopupIfNew !== false
-      if (showPopup && active.length > 0) {
-        const unseen = filterUnseenAccountUpdates(resolvedId, active)
-        if (unseen.length > 0) {
-          setPopupUpdates(unseen)
-          setChatOpen(true)
-          setUpdatePopupOpen(true)
+
+    const loadUpdates = async () => {
+      try {
+        const active = await fetchActiveAccountUpdates(resolvedId)
+        setActiveUpdates(active)
+        const showPopup = opts?.showPopupIfNew !== false
+        if (showPopup && active.length > 0) {
+          const unseen = filterUnseenAccountUpdates(resolvedId, active)
+          if (unseen.length > 0) {
+            setPopupUpdates(unseen)
+            setChatOpen(true)
+            setUpdatePopupOpen(true)
+          }
+        }
+      } catch (e) {
+        if (import.meta.env.DEV) {
+          console.warn('[account-updates] fetch failed:', e)
+        }
+        setActiveUpdates([])
+      }
+    }
+
+    const loadQueues = async () => {
+      if (!isAivaSessionChatEnabled()) return
+      try {
+        const access = await aivaFetchQueueAccess(resolvedId)
+        setQueueAccess(access)
+        setSelectedQueues((prev) =>
+          prev.length ? prev : access.default_active_queues,
+        )
+        if (import.meta.env.DEV) {
+          console.info(
+            '[kb-queues] loaded for account',
+            resolvedId,
+            access.available_queues.map((q) => q.key),
+          )
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (import.meta.env.DEV) {
+          console.warn('[kb-queues] fetch failed:', e)
+        }
+        setQueueAccess(null)
+        if (/404|not found/i.test(msg)) {
+          setToast(
+            'KB queues are not available on this server. Use local backend (localhost:8000) or deploy the latest AIVA-V2.',
+          )
         }
       }
-    } catch (e) {
-      if (import.meta.env.DEV) {
-        console.warn('[account-updates] fetch failed:', e)
-      }
-      setActiveUpdates([])
     }
+
+    await Promise.all([loadUpdates(), loadQueues()])
   }, [accountId])
 
   useEffect(() => {
     if (state !== 'authenticated') {
       setAccountId(null)
+      setQueueAccess(null)
+      setSelectedQueues([])
       setActiveUpdates([])
       setPopupUpdates([])
       setUpdatePopupOpen(false)
@@ -421,13 +463,19 @@ export function App() {
         streamUi
           ? {
               signal: abortController.signal,
+              accountId: accountId ?? undefined,
+              activeQueues: selectedQueues.length ? selectedQueues : undefined,
               onHaivaAssistantText: (acc) => {
                 setMessages((m) =>
                   m.map((x) => (x.id === assistantMsgId ? { ...x, content: acc } : x)),
                 )
               },
             }
-          : { signal: abortController.signal },
+          : {
+              signal: abortController.signal,
+              accountId: accountId ?? undefined,
+              activeQueues: selectedQueues.length ? selectedQueues : undefined,
+            },
       )
       if (res.conversation_id) {
         conversationIdRef.current = res.conversation_id
@@ -652,6 +700,10 @@ export function App() {
     setMessages([])
     setUpdatePopupOpen(false)
     setAuthenticated()
+    if (isAivaSessionChatEnabled()) {
+      setChatOpen(true)
+    }
+    void refreshAccountUpdates(undefined, { showPopupIfNew: true })
   }
 
   async function handleLogout() {
@@ -663,7 +715,10 @@ export function App() {
     conversationIdRef.current = null
     setMessages([])
     if (isAivaSessionChatEnabled()) {
-      void aivaCreateSession()
+      const queues = selectedQueues.length
+        ? selectedQueues
+        : queueAccess?.default_active_queues
+      void aivaCreateSession(accountId ?? undefined, queues)
         .then((sid) => {
           conversationIdRef.current = sid
           setStoredConversationId(sid)
@@ -671,6 +726,18 @@ export function App() {
         .catch((e) => {
           setToast(e instanceof Error ? e.message : 'Could not start a new session')
         })
+    }
+  }
+
+  async function handleQueueChange(keys: string[]) {
+    if (keys.length === 0) return
+    setSelectedQueues(keys)
+    const sid = conversationIdRef.current ?? getStoredConversationId()
+    if (!sid || !isAivaSessionChatEnabled()) return
+    try {
+      await aivaUpdateSessionQueues(sid, keys)
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : 'Could not update queues')
     }
   }
 
@@ -730,6 +797,13 @@ export function App() {
               unseenUpdateCount={unseenUpdates.length}
               accountUpdates={activeUpdates}
               onViewUpdates={handleViewUpdates}
+              kbQueues={queueAccess?.available_queues}
+              selectedKbQueues={
+                selectedQueues.length
+                  ? selectedQueues
+                  : queueAccess?.default_active_queues ?? []
+              }
+              onKbQueuesChange={(keys) => void handleQueueChange(keys)}
             />
             <MessageFeedbackModal
               open={rateDownMessageId != null}

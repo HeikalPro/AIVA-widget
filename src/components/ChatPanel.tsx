@@ -301,6 +301,8 @@ function TypingIndicator() {
   )
 }
 
+type KbQueueOption = { key: string; label: string }
+
 type Props = {
   messages: ChatMessage[]
   loading: boolean
@@ -322,6 +324,9 @@ type Props = {
   unseenUpdateCount?: number
   accountUpdates?: AccountUpdate[]
   onViewUpdates?: () => void
+  kbQueues?: KbQueueOption[]
+  selectedKbQueues?: string[]
+  onKbQueuesChange?: (keys: string[]) => void
 }
 
 export function ChatPanel({
@@ -343,6 +348,9 @@ export function ChatPanel({
   unseenUpdateCount = 0,
   accountUpdates = [],
   onViewUpdates = () => {},
+  kbQueues,
+  selectedKbQueues = [],
+  onKbQueuesChange,
 }: Props) {
   const [calculatorOpen, setCalculatorOpen] = useState(false)
   const updateBadgeCount =
@@ -437,6 +445,36 @@ export function ChatPanel({
           </div>
         </div>
       </header>
+
+      {kbQueues && kbQueues.length > 0 && onKbQueuesChange && (
+        <div className="no-drag flex shrink-0 flex-wrap items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-3 py-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">KB</span>
+          {kbQueues.map((q) => {
+            const on = selectedKbQueues.includes(q.key)
+            return (
+              <button
+                key={q.key}
+                type="button"
+                disabled={loading}
+                onClick={() => {
+                  const next = on
+                    ? selectedKbQueues.filter((k) => k !== q.key)
+                    : [...selectedKbQueues, q.key]
+                  if (next.length === 0) return
+                  onKbQueuesChange(next)
+                }}
+                className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                  on
+                    ? 'border-gochat bg-gochat/10 text-gochat'
+                    : 'border-slate-300 bg-white text-slate-600 hover:border-gochat/40'
+                }`}
+              >
+                {q.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {calculatorOpen ? (
         <InstallmentCalculatorPanel onClose={() => setCalculatorOpen(false)} />
