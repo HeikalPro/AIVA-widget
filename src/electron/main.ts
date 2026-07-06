@@ -33,8 +33,8 @@ const LOGIN_W = 440
 const LOGIN_H = 560
 const BUBBLE = 48
 /** Default chat window size (user can resize; bounds clamped in handlers). */
-const EXPANDED_W = 380
-const EXPANDED_H = 540
+const EXPANDED_W = 400
+const EXPANDED_H = 560
 const CHAT_MIN_W = 280
 const CHAT_MIN_H = 360
 

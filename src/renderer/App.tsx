@@ -355,7 +355,6 @@ export function App() {
   useEffect(() => {
     if (state === 'authenticated') {
       conversationIdRef.current = getStoredConversationId()
-      void applyAssistantCollapsed()
       return
     }
     if (state === 'unauthenticated') {
@@ -365,7 +364,7 @@ export function App() {
       setChatOpen(false)
       void applyLoginMode()
     }
-  }, [state, applyAssistantCollapsed, applyLoginMode])
+  }, [state, applyLoginMode])
 
   useEffect(() => {
     if (state !== 'authenticated') return
@@ -699,10 +698,8 @@ export function App() {
     conversationIdRef.current = null
     setMessages([])
     setUpdatePopupOpen(false)
+    setChatOpen(true)
     setAuthenticated()
-    if (isAivaSessionChatEnabled()) {
-      setChatOpen(true)
-    }
     void refreshAccountUpdates(undefined, { showPopupIfNew: true })
   }
 
@@ -764,12 +761,14 @@ export function App() {
   }
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-transparent">
+    <div
+      className={`relative box-border h-full w-full bg-transparent ${chatOpen ? 'p-2.5' : 'overflow-hidden'}`}
+    >
       <AnimatePresence mode="wait">
         {chatOpen ? (
           <motion.div
             key="open"
-            className="relative flex h-full w-full flex-col"
+            className="relative flex h-full min-h-0 w-full flex-col"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

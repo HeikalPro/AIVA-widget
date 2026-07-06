@@ -377,9 +377,10 @@ export function ChatPanel({
       exit={{ opacity: 0, y: 6, scale: 0.98 }}
       transition={{ type: 'spring', stiffness: 420, damping: 32 }}
       title="Drag the header to move the window"
-      className="flex h-full w-full min-w-0 flex-col rounded-2xl border border-widget-strong bg-white"
+      className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border-2 border-widget-strong bg-white shadow-widget-lg ring-1 ring-white/60"
     >
-      <header className="drag relative flex shrink-0 cursor-move select-none items-center gap-3 border-b border-widget-strong bg-white px-3.5 py-2.5">
+      <div className="h-1 shrink-0 bg-gradient-to-r from-gochat-dark via-gochat to-gochat-light" aria-hidden />
+      <header className="drag relative flex shrink-0 cursor-move select-none items-center gap-3 border-b border-widget bg-white px-3.5 py-2.5">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-widget-strong bg-white p-0.5">
             <BrandLogo className="h-full w-full object-contain" alt="" />
