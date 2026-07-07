@@ -22,6 +22,7 @@ import {
   aivaFetchSessionMessages,
   aivaSubmitRating,
   aivaUpdateSessionQueues,
+  normalizeQueuesForAccess,
   type AivaQueueAccess,
 } from '@/services/aivaSessionChatClient'
 import {
@@ -39,14 +40,25 @@ import {
   getStoredConversationId,
   setStoredConversationId,
 } from '@/services/conversation'
+import {
+  fetchWidgetAccounts,
+  getStoredAccountId,
+  pickDefaultAccountId,
+  setStoredAccountId,
+} from '@/services/accountsClient'
 import type { ChatMessage } from '@/types/api'
+import {
+  buildCalculatorProductSettingsMap,
+  installmentCalculatorTypes,
+  isInstallmentCalculatorEnabled,
+} from '@/types/widgetFeatures'
 import {
   fetchActiveAccountUpdates,
   filterUnseenAccountUpdates,
   markAccountUpdatesSeen,
-  resolveWidgetAccountId,
   type AccountUpdate,
 } from '@/services/accountUpdatesClient'
+import type { WidgetAccount } from '@/types/widgetFeatures'
 
 /** Poll for new account announcements while logged in. */
 const ACCOUNT_UPDATES_POLL_MS = 30_000
@@ -69,6 +81,7 @@ export function App() {
   const [rateDownInitialFeedback, setRateDownInitialFeedback] = useState<string>('')
   const [ratingModalSubmitting, setRatingModalSubmitting] = useState(false)
   const [accountId, setAccountId] = useState<number | null>(null)
+  const [widgetAccounts, setWidgetAccounts] = useState<WidgetAccount[]>([])
   const [queueAccess, setQueueAccess] = useState<AivaQueueAccess | null>(null)
   const [selectedQueues, setSelectedQueues] = useState<string[]>([])
   const [activeUpdates, setActiveUpdates] = useState<AccountUpdate[]>([])
@@ -77,10 +90,22 @@ export function App() {
   /** Mirrors session/local storage so follow-up sends always reuse thread (axios + IPC timing). */
   const conversationIdRef = useRef<string | null>(null)
   const chatAbortRef = useRef<AbortController | null>(null)
+  const selectedQueuesRef = useRef(selectedQueues)
   const chatOpenRef = useRef(chatOpen)
+  useEffect(() => {
+    selectedQueuesRef.current = selectedQueues
+  }, [selectedQueues])
   useEffect(() => {
     chatOpenRef.current = chatOpen
   }, [chatOpen])
+
+  const activeAccount = useMemo(
+    () => widgetAccounts.find((a) => a.id === accountId) ?? widgetAccounts[0] ?? null,
+    [widgetAccounts, accountId],
+  )
+  const showInstallmentCalculator = isInstallmentCalculatorEnabled(activeAccount?.widget_features)
+  const calculatorTypes = installmentCalculatorTypes(activeAccount?.widget_features)
+  const calculatorProductSettings = buildCalculatorProductSettingsMap(activeAccount?.widget_features)
 
   useEffect(() => {
     assertApiBaseUrl()
@@ -93,25 +118,29 @@ export function App() {
   }, [toast])
 
   useEffect(() => {
-    if (state !== 'authenticated') return
+    if (state !== 'authenticated' || accountId == null) return
 
     if (isHalanAgentChatEnabled()) {
-      const cid = getStoredConversationId()
+      const cid = getStoredConversationId(accountId)
       conversationIdRef.current = cid
-      if (!cid) return
+      if (!cid) {
+        setMessages([])
+        return
+      }
 
       let cancelled = false
       setHistoryLoading(true)
       void halanFetchMessages(cid)
         .then((rows) => {
           if (cancelled) return
-          if (getStoredConversationId() !== cid) return
+          if (getStoredConversationId(accountId) !== cid) return
           setMessages(rows.map(halanHistoryRowToChatMessage))
         })
         .catch(() => {
           if (cancelled) return
-          clearStoredConversationId()
+          clearStoredConversationId(accountId)
           conversationIdRef.current = null
+          setMessages([])
         })
         .finally(() => {
           if (!cancelled) setHistoryLoading(false)
@@ -124,22 +153,26 @@ export function App() {
 
     if (!isAivaSessionChatEnabled()) return
 
-    const sid = getStoredConversationId()
+    const sid = getStoredConversationId(accountId)
     conversationIdRef.current = sid
-    if (!sid) return
+    if (!sid) {
+      setMessages([])
+      return
+    }
 
     let cancelled = false
     setHistoryLoading(true)
     void aivaFetchSessionMessages(sid)
       .then((rows) => {
         if (cancelled) return
-        if (getStoredConversationId() !== sid) return
+        if (getStoredConversationId(accountId) !== sid) return
         setMessages(rows)
       })
       .catch(() => {
         if (cancelled) return
-        clearStoredConversationId()
+        clearStoredConversationId(accountId)
         conversationIdRef.current = null
+        setMessages([])
       })
       .finally(() => {
         if (!cancelled) setHistoryLoading(false)
@@ -148,7 +181,7 @@ export function App() {
     return () => {
       cancelled = true
     }
-  }, [state])
+  }, [state, accountId])
 
   const unseenUpdates = useMemo(() => {
     if (accountId == null) return activeUpdates
@@ -156,13 +189,12 @@ export function App() {
   }, [accountId, activeUpdates])
 
   const refreshAccountUpdates = useCallback(async (aid?: number | null, opts?: { showPopupIfNew?: boolean }) => {
-    const resolvedId = aid ?? accountId ?? (await resolveWidgetAccountId())
+    const resolvedId = aid ?? accountId
     if (!resolvedId) {
       setActiveUpdates([])
       setQueueAccess(null)
       return
     }
-    setAccountId(resolvedId)
 
     const loadUpdates = async () => {
       try {
@@ -190,9 +222,22 @@ export function App() {
       try {
         const access = await aivaFetchQueueAccess(resolvedId)
         setQueueAccess(access)
-        setSelectedQueues((prev) =>
+        const prev = selectedQueuesRef.current
+        const normalized = normalizeQueuesForAccess(
           prev.length ? prev : access.default_active_queues,
+          access,
         )
+        setSelectedQueues(normalized)
+        const sid = conversationIdRef.current ?? getStoredConversationId(resolvedId)
+        if (sid && normalized.length > 0) {
+          try {
+            await aivaUpdateSessionQueues(sid, normalized)
+          } catch (e) {
+            if (import.meta.env.DEV) {
+              console.warn('[kb-queues] could not sync session queues:', e)
+            }
+          }
+        }
         if (import.meta.env.DEV) {
           console.info(
             '[kb-queues] loaded for account',
@@ -220,6 +265,7 @@ export function App() {
   useEffect(() => {
     if (state !== 'authenticated') {
       setAccountId(null)
+      setWidgetAccounts([])
       setQueueAccess(null)
       setSelectedQueues([])
       setActiveUpdates([])
@@ -228,7 +274,26 @@ export function App() {
       return
     }
 
-    void refreshAccountUpdates(undefined, { showPopupIfNew: true })
+    let cancelled = false
+    void (async () => {
+      try {
+        const accounts = await fetchWidgetAccounts()
+        if (cancelled) return
+        setWidgetAccounts(accounts)
+        const id = pickDefaultAccountId(accounts, getStoredAccountId())
+        setAccountId(id)
+        setStoredAccountId(id)
+        conversationIdRef.current = getStoredConversationId(id)
+        await refreshAccountUpdates(id, { showPopupIfNew: true })
+      } catch (e) {
+        if (cancelled) return
+        setToast(e instanceof Error ? e.message : 'Could not load accounts')
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [state, refreshAccountUpdates])
 
   useEffect(() => {
@@ -353,8 +418,8 @@ export function App() {
   }, [])
 
   useEffect(() => {
-    if (state === 'authenticated') {
-      conversationIdRef.current = getStoredConversationId()
+    if (state === 'authenticated' && accountId != null) {
+      conversationIdRef.current = getStoredConversationId(accountId)
       return
     }
     if (state === 'unauthenticated') {
@@ -364,7 +429,7 @@ export function App() {
       setChatOpen(false)
       void applyLoginMode()
     }
-  }, [state, applyLoginMode])
+  }, [state, accountId, applyLoginMode])
 
   useEffect(() => {
     if (state !== 'authenticated') return
@@ -453,7 +518,15 @@ export function App() {
     setMessages((m) => (assistantPlaceholder ? [...m, userMsg, assistantPlaceholder] : [...m, userMsg]))
     setLoading(true)
     try {
-      const cid = conversationIdRef.current ?? getStoredConversationId() ?? undefined
+      const cid = conversationIdRef.current ?? getStoredConversationId(accountId ?? undefined) ?? undefined
+      const activeQueues = queueAccess
+        ? normalizeQueuesForAccess(
+            selectedQueues.length ? selectedQueues : queueAccess.default_active_queues,
+            queueAccess,
+          )
+        : selectedQueues.length
+          ? selectedQueues
+          : undefined
       const res = await sendChatMessage(
         {
           user_message: text,
@@ -463,7 +536,7 @@ export function App() {
           ? {
               signal: abortController.signal,
               accountId: accountId ?? undefined,
-              activeQueues: selectedQueues.length ? selectedQueues : undefined,
+              activeQueues,
               onHaivaAssistantText: (acc) => {
                 setMessages((m) =>
                   m.map((x) => (x.id === assistantMsgId ? { ...x, content: acc } : x)),
@@ -473,12 +546,12 @@ export function App() {
           : {
               signal: abortController.signal,
               accountId: accountId ?? undefined,
-              activeQueues: selectedQueues.length ? selectedQueues : undefined,
+              activeQueues,
             },
       )
       if (res.conversation_id) {
         conversationIdRef.current = res.conversation_id
-        setStoredConversationId(res.conversation_id)
+        setStoredConversationId(res.conversation_id, accountId ?? undefined)
       }
       const reply =
         res.response ||
@@ -651,7 +724,7 @@ export function App() {
       if (isAivaSessionChatEnabled()) {
         await aivaSubmitRating(messageId, { rating: 'up' })
       } else {
-        const cid = conversationIdRef.current ?? getStoredConversationId()
+        const cid = conversationIdRef.current ?? getStoredConversationId(accountId ?? undefined)
         if (!cid) return
         await halanSubmitRating(cid, messageId, { rating: 'up' })
       }
@@ -676,7 +749,7 @@ export function App() {
       if (isAivaSessionChatEnabled()) {
         await aivaSubmitRating(mid, { rating: 'down', feedback: trimmed })
       } else {
-        const cid = conversationIdRef.current ?? getStoredConversationId()
+        const cid = conversationIdRef.current ?? getStoredConversationId(accountId ?? undefined)
         if (!cid) return
         await halanSubmitRating(cid, mid, { rating: 'down', feedback: trimmed })
       }
@@ -694,13 +767,25 @@ export function App() {
   }
 
   function handleLoginSuccess() {
-    clearStoredConversationId()
-    conversationIdRef.current = null
     setMessages([])
     setUpdatePopupOpen(false)
     setChatOpen(true)
     setAuthenticated()
-    void refreshAccountUpdates(undefined, { showPopupIfNew: true })
+  }
+
+  function handleAccountChange(nextAccountId: number) {
+    if (nextAccountId === accountId) return
+    setStoredAccountId(nextAccountId)
+    setAccountId(nextAccountId)
+    conversationIdRef.current = getStoredConversationId(nextAccountId)
+    selectedQueuesRef.current = []
+    setMessages([])
+    setSelectedQueues([])
+    setQueueAccess(null)
+    setActiveUpdates([])
+    setPopupUpdates([])
+    setUpdatePopupOpen(false)
+    void refreshAccountUpdates(nextAccountId, { showPopupIfNew: false })
   }
 
   async function handleLogout() {
@@ -708,17 +793,18 @@ export function App() {
   }
 
   function handleNewConversation() {
-    clearStoredConversationId()
+    if (accountId == null) return
+    clearStoredConversationId(accountId)
     conversationIdRef.current = null
     setMessages([])
     if (isAivaSessionChatEnabled()) {
       const queues = selectedQueues.length
         ? selectedQueues
         : queueAccess?.default_active_queues
-      void aivaCreateSession(accountId ?? undefined, queues)
+      void aivaCreateSession(accountId, queues)
         .then((sid) => {
           conversationIdRef.current = sid
-          setStoredConversationId(sid)
+          setStoredConversationId(sid, accountId)
         })
         .catch((e) => {
           setToast(e instanceof Error ? e.message : 'Could not start a new session')
@@ -728,11 +814,13 @@ export function App() {
 
   async function handleQueueChange(keys: string[]) {
     if (keys.length === 0) return
-    setSelectedQueues(keys)
-    const sid = conversationIdRef.current ?? getStoredConversationId()
+    const normalized = queueAccess ? normalizeQueuesForAccess(keys, queueAccess) : keys
+    if (normalized.length === 0) return
+    setSelectedQueues(normalized)
+    const sid = conversationIdRef.current ?? getStoredConversationId(accountId ?? undefined)
     if (!sid || !isAivaSessionChatEnabled()) return
     try {
-      await aivaUpdateSessionQueues(sid, keys)
+      await aivaUpdateSessionQueues(sid, normalized)
     } catch (e) {
       setToast(e instanceof Error ? e.message : 'Could not update queues')
     }
@@ -796,6 +884,13 @@ export function App() {
               unseenUpdateCount={unseenUpdates.length}
               accountUpdates={activeUpdates}
               onViewUpdates={handleViewUpdates}
+              accounts={widgetAccounts}
+              accountId={accountId}
+              accountName={activeAccount?.name ?? null}
+              onAccountChange={handleAccountChange}
+              showInstallmentCalculator={showInstallmentCalculator}
+              calculatorTypes={calculatorTypes}
+              calculatorProductSettings={calculatorProductSettings}
               kbQueues={queueAccess?.available_queues}
               selectedKbQueues={
                 selectedQueues.length

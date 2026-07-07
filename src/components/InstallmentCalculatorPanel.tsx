@@ -5,6 +5,7 @@ import {
   formatEgp,
   formatFlatRate,
   parsePrincipalInput,
+  type CalculatorProductSettings,
   type CalculatorType,
 } from '@/utils/installmentCalculator'
 
@@ -16,16 +17,26 @@ const tabBtnClass =
 
 type Props = {
   onClose: () => void
+  allowedTypes?: CalculatorType[]
+  productSettings?: Partial<Record<CalculatorType, CalculatorProductSettings>>
 }
 
-export function InstallmentCalculatorPanel({ onClose }: Props) {
-  const [type, setType] = useState<CalculatorType>('cash-it')
+export function InstallmentCalculatorPanel({ onClose, allowedTypes, productSettings }: Props) {
+  const types = allowedTypes?.length
+    ? allowedTypes
+    : (Object.keys(CALCULATOR_LABELS) as CalculatorType[])
+  const [type, setType] = useState<CalculatorType>(types[0] ?? 'cash-it')
   const [principalInput, setPrincipalInput] = useState('10000')
+
+  const activeType = types.includes(type) ? type : types[0] ?? 'cash-it'
 
   const principal = parsePrincipalInput(principalInput)
   const rows = useMemo(
-    () => (principal != null ? calculateInstallmentPlan(type, principal) : []),
-    [principal, type],
+    () =>
+      principal != null
+        ? calculateInstallmentPlan(activeType, principal, productSettings?.[activeType])
+        : [],
+    [principal, activeType, productSettings],
   )
 
   return (
@@ -46,8 +57,8 @@ export function InstallmentCalculatorPanel({ onClose }: Props) {
         </div>
 
         <div className="mt-2.5 flex gap-1">
-          {(Object.keys(CALCULATOR_LABELS) as CalculatorType[]).map((key) => {
-            const active = type === key
+          {types.map((key) => {
+            const active = activeType === key
             return (
               <button
                 key={key}

@@ -11,7 +11,13 @@ export type InstallmentRow = {
   monthlyFlatRate: number
 }
 
-const INSTANT_APPROVAL_FLAT_RATES: Record<InstallmentTenor, number> = {
+export type CalculatorProductSettings = {
+  apr?: number
+  tenors?: InstallmentTenor[]
+  flatRates?: Partial<Record<InstallmentTenor, number>>
+}
+
+export const DEFAULT_INSTANT_APPROVAL_FLAT_RATES: Record<InstallmentTenor, number> = {
   6: 0.0314,
   9: 0.0285,
   12: 0.0248,
@@ -21,7 +27,7 @@ const INSTANT_APPROVAL_FLAT_RATES: Record<InstallmentTenor, number> = {
   36: 0.0327,
 }
 
-const APR_BY_TYPE: Record<Exclude<CalculatorType, 'instant-approval'>, number> = {
+export const DEFAULT_APR_BY_TYPE: Record<Exclude<CalculatorType, 'instant-approval'>, number> = {
   'cash-it': 0.55,
   branches: 0.52,
 }
@@ -55,28 +61,49 @@ function decliningBalanceRow(
   return { months, installment, totalInterest, monthlyFlatRate }
 }
 
-function instantApprovalRow(principal: number, months: InstallmentTenor): InstallmentRow {
-  const monthlyFlatRate = INSTANT_APPROVAL_FLAT_RATES[months] * 100
+function instantApprovalRow(
+  principal: number,
+  months: InstallmentTenor,
+  flatRates: Record<InstallmentTenor, number>,
+): InstallmentRow {
+  const monthlyFlatRateDecimal = flatRates[months]
+  const monthlyFlatRate = monthlyFlatRateDecimal * 100
   const { installment, totalInterest } = flatRateInstallment(
     principal,
-    INSTANT_APPROVAL_FLAT_RATES[months],
+    monthlyFlatRateDecimal,
     months,
   )
   return { months, installment, totalInterest, monthlyFlatRate }
 }
 
+function resolveTenors(settings?: CalculatorProductSettings): InstallmentTenor[] {
+  const allowed = new Set<InstallmentTenor>(INSTALLMENT_TENORS)
+  const fromSettings = settings?.tenors?.filter((month) => allowed.has(month)) ?? []
+  return fromSettings.length > 0 ? fromSettings : [...INSTALLMENT_TENORS]
+}
+
+function resolveInstantFlatRates(
+  settings?: CalculatorProductSettings,
+): Record<InstallmentTenor, number> {
+  return { ...DEFAULT_INSTANT_APPROVAL_FLAT_RATES, ...(settings?.flatRates ?? {}) }
+}
+
 export function calculateInstallmentPlan(
   type: CalculatorType,
   principal: number,
+  settings?: CalculatorProductSettings,
 ): InstallmentRow[] {
   if (!Number.isFinite(principal) || principal <= 0) return []
 
+  const tenors = resolveTenors(settings)
+
   if (type === 'instant-approval') {
-    return INSTALLMENT_TENORS.map((months) => instantApprovalRow(principal, months))
+    const flatRates = resolveInstantFlatRates(settings)
+    return tenors.map((months) => instantApprovalRow(principal, months, flatRates))
   }
 
-  const annualRate = APR_BY_TYPE[type]
-  return INSTALLMENT_TENORS.map((months) => decliningBalanceRow(principal, annualRate, months))
+  const annualRate = settings?.apr ?? DEFAULT_APR_BY_TYPE[type]
+  return tenors.map((months) => decliningBalanceRow(principal, annualRate, months))
 }
 
 export function parsePrincipalInput(raw: string): number | null {

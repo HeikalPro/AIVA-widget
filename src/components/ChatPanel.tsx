@@ -19,6 +19,7 @@ import {
   formatAsChat,
   formatAsEmail,
 } from '@/utils/copyResponseFormats'
+import type { CalculatorProductSettings, CalculatorType } from '@/utils/installmentCalculator'
 
 /** Speech bubble with plus — new conversation */
 function IconNewChat({ className }: { className?: string }) {
@@ -266,6 +267,8 @@ function TypingIndicator() {
 
 type KbQueueOption = { key: string; label: string }
 
+type AccountOption = { id: number; name: string }
+
 type Props = {
   messages: ChatMessage[]
   loading: boolean
@@ -287,6 +290,13 @@ type Props = {
   unseenUpdateCount?: number
   accountUpdates?: AccountUpdate[]
   onViewUpdates?: () => void
+  accounts?: AccountOption[]
+  accountId?: number | null
+  accountName?: string | null
+  onAccountChange?: (accountId: number) => void
+  showInstallmentCalculator?: boolean
+  calculatorTypes?: CalculatorType[]
+  calculatorProductSettings?: Partial<Record<CalculatorType, CalculatorProductSettings>>
   kbQueues?: KbQueueOption[]
   selectedKbQueues?: string[]
   onKbQueuesChange?: (keys: string[]) => void
@@ -311,6 +321,13 @@ export function ChatPanel({
   unseenUpdateCount = 0,
   accountUpdates = [],
   onViewUpdates = () => {},
+  accounts = [],
+  accountId = null,
+  accountName = null,
+  onAccountChange,
+  showInstallmentCalculator = false,
+  calculatorTypes = [],
+  calculatorProductSettings,
   kbQueues,
   selectedKbQueues = [],
   onKbQueuesChange,
@@ -319,6 +336,10 @@ export function ChatPanel({
   const updateBadgeCount =
     activeUpdateCount > 0 ? (unseenUpdateCount > 0 ? unseenUpdateCount : activeUpdateCount) : 0
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showInstallmentCalculator) setCalculatorOpen(false)
+  }, [showInstallmentCalculator, accountId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -350,7 +371,9 @@ export function ChatPanel({
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold tracking-tight text-slate-900">GoChat247</p>
-            <p className="truncate text-[10px] font-medium text-gochat">AI assistant</p>
+            <p className="truncate text-[10px] font-medium text-gochat">
+              {accountName ? `${accountName} · AI assistant` : 'AI assistant'}
+            </p>
           </div>
         </div>
         <div className="no-drag flex shrink-0 items-center gap-0.5">
@@ -371,16 +394,18 @@ export function ChatPanel({
               </span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setCalculatorOpen((open) => !open)}
-            title={calculatorOpen ? 'Back to chat' : 'Installment calculator'}
-            aria-label={calculatorOpen ? 'Back to chat' : 'Open installment calculator'}
-            aria-pressed={calculatorOpen}
-            className={`${headerIconBtn} ${calculatorOpen ? 'border-gochat bg-gochat/10 text-gochat' : ''}`}
-          >
-            <IconCalculator className="h-[18px] w-[18px] shrink-0" />
-          </button>
+          {showInstallmentCalculator && (
+            <button
+              type="button"
+              onClick={() => setCalculatorOpen((open) => !open)}
+              title={calculatorOpen ? 'Back to chat' : 'Installment calculator'}
+              aria-label={calculatorOpen ? 'Back to chat' : 'Open installment calculator'}
+              aria-pressed={calculatorOpen}
+              className={`${headerIconBtn} ${calculatorOpen ? 'border-gochat bg-gochat/10 text-gochat' : ''}`}
+            >
+              <IconCalculator className="h-[18px] w-[18px] shrink-0" />
+            </button>
+          )}
           <button
             type="button"
             onClick={onNewConversation}
@@ -409,6 +434,26 @@ export function ChatPanel({
           </div>
         </div>
       </header>
+
+      {accounts.length > 1 && onAccountChange && (
+        <div className="no-drag shrink-0 border-b border-slate-200 bg-white px-3 py-2">
+          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            Account
+          </label>
+          <select
+            value={accountId ?? ''}
+            onChange={(e) => onAccountChange(Number(e.target.value))}
+            disabled={loading || calculatorOpen}
+            className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-gochat"
+          >
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {kbQueues && kbQueues.length > 0 && onKbQueuesChange && (
         <div className="no-drag flex shrink-0 flex-wrap items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-3 py-2">
@@ -441,7 +486,11 @@ export function ChatPanel({
       )}
 
       {calculatorOpen ? (
-        <InstallmentCalculatorPanel onClose={() => setCalculatorOpen(false)} />
+        <InstallmentCalculatorPanel
+          onClose={() => setCalculatorOpen(false)}
+          allowedTypes={calculatorTypes}
+          productSettings={calculatorProductSettings}
+        />
       ) : (
       <div className="no-drag relative min-h-0 flex-1 overflow-y-auto bg-white px-3.5 py-3 [scrollbar-color:rgba(148,163,184,0.6)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent">
         <div className="relative space-y-3">

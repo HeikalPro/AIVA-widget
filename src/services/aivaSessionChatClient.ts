@@ -90,6 +90,16 @@ export type AivaQueueAccess = {
   default_active_queues: string[]
 }
 
+export function normalizeQueuesForAccess(
+  queues: string[],
+  access: AivaQueueAccess,
+): string[] {
+  const allowed = new Set(access.allowed_queues)
+  const filtered = queues.filter((key) => allowed.has(key))
+  if (filtered.length > 0) return filtered
+  return [...access.default_active_queues]
+}
+
 export async function aivaFetchQueueAccess(accountId: number): Promise<AivaQueueAccess> {
   const res = await fetchWithAuth(
     apiUrl(`/api/chat/queue-access?account_id=${accountId}`),
