@@ -8,7 +8,7 @@ import { BrandLogo } from '@/components/BrandLogo'
 import { InstallmentCalculatorPanel } from '@/components/InstallmentCalculatorPanel'
 import { Toast } from '@/components/Toast'
 import { WindowChromeButtons } from '@/components/WindowChromeButtons'
-import type { ChatMessage, KbSource } from '@/types/api'
+import type { ChatMessage } from '@/types/api'
 import type { AccountUpdate } from '@/services/accountUpdatesClient'
 import {
   assistantMarkdownSanitizeSchema,
@@ -130,43 +130,6 @@ function ThumbDownIcon({ className }: { className?: string }) {
     <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z" />
     </svg>
-  )
-}
-
-function IconExternalLink({ className }: { className?: string }) {
-  return (
-    <svg className={className} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      <polyline points="15 3 21 3 21 9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
-    </svg>
-  )
-}
-
-function MessageKbSources({ sources }: { sources: KbSource[] }) {
-  if (!sources.length) return null
-  const sourceBtnClass =
-    'no-drag inline-flex items-center gap-1.5 rounded-full border border-gochat/30 bg-[#0057A8]/10 px-3 py-1.5 text-[11px] font-semibold text-[#0057A8] shadow-sm transition-colors hover:border-gochat hover:bg-[#0057A8] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gochat/40'
-  return (
-    <div className="flex w-full flex-wrap items-center gap-2 rounded-xl border border-dashed border-gochat/25 bg-gochat/[0.04] px-2.5 py-2">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">KB source</span>
-      {sources.map((s) => (
-        <a
-          key={s.parent_id}
-          href={s.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={`Open knowledge base article #${s.parent_id}\n${s.url}`}
-          className={`${sourceBtnClass} group`}
-        >
-          <IconExternalLink className="shrink-0 opacity-90" />
-          <span>Open article</span>
-          <span className="rounded-md bg-white/80 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-gochat group-hover:bg-white/20 group-hover:text-white">
-            #{s.parent_id}
-          </span>
-        </a>
-      ))}
-    </div>
   )
 }
 
@@ -566,18 +529,15 @@ export function ChatPanel({
                     </ReactMarkdown>
                   </div>
                 </div>
-                <div className="mt-1.5 flex w-full flex-col gap-1.5">
-                  {m.sources && m.sources.length > 0 && <MessageKbSources sources={m.sources} />}
-                  <div className="flex w-full flex-wrap items-center gap-2">
-                    <CopyFormatControls content={m.content} />
-                    <MessageRatingControls
-                      message={m}
-                      ratingsEnabled={ratingsEnabled}
-                      ratingBusyId={ratingBusyId}
-                      onThumbUp={onThumbUp}
-                      onThumbDown={onThumbDown}
-                    />
-                  </div>
+                <div className="mt-1.5 flex w-full flex-wrap items-center gap-2">
+                  <CopyFormatControls content={m.content} />
+                  <MessageRatingControls
+                    message={m}
+                    ratingsEnabled={ratingsEnabled}
+                    ratingBusyId={ratingBusyId}
+                    onThumbUp={onThumbUp}
+                    onThumbDown={onThumbDown}
+                  />
                 </div>
               </div>,
             ]
