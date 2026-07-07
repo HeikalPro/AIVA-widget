@@ -60,8 +60,8 @@ import {
 } from '@/services/accountUpdatesClient'
 import type { WidgetAccount } from '@/types/widgetFeatures'
 
-/** Poll for new account announcements while logged in. */
-const ACCOUNT_UPDATES_POLL_MS = 30_000
+/** Poll for account announcements and widget config while logged in. */
+const WIDGET_SYNC_POLL_MS = 15_000
 
 export function App() {
   const { state, setAuthenticated, logout } = useAuth()
@@ -188,6 +188,23 @@ export function App() {
     return filterUnseenAccountUpdates(accountId, activeUpdates)
   }, [accountId, activeUpdates])
 
+  const refreshWidgetAccounts = useCallback(async () => {
+    try {
+      const accounts = await fetchWidgetAccounts()
+      setWidgetAccounts(accounts)
+      setAccountId((prev) => {
+        if (prev != null && accounts.some((a) => a.id === prev)) return prev
+        const id = pickDefaultAccountId(accounts, getStoredAccountId())
+        setStoredAccountId(id)
+        return id
+      })
+    } catch (e) {
+      if (import.meta.env.DEV) {
+        console.warn('[widget-accounts] refresh failed:', e)
+      }
+    }
+  }, [])
+
   const refreshAccountUpdates = useCallback(async (aid?: number | null, opts?: { showPopupIfNew?: boolean }) => {
     const resolvedId = aid ?? accountId
     if (!resolvedId) {
@@ -259,8 +276,8 @@ export function App() {
       }
     }
 
-    await Promise.all([loadUpdates(), loadQueues()])
-  }, [accountId])
+    await Promise.all([loadUpdates(), loadQueues(), refreshWidgetAccounts()])
+  }, [accountId, refreshWidgetAccounts])
 
   useEffect(() => {
     if (state !== 'authenticated') {
@@ -305,7 +322,7 @@ export function App() {
     if (state !== 'authenticated') return
     const timer = window.setInterval(() => {
       void refreshAccountUpdates(undefined, { showPopupIfNew: true })
-    }, ACCOUNT_UPDATES_POLL_MS)
+    }, WIDGET_SYNC_POLL_MS)
     return () => window.clearInterval(timer)
   }, [state, refreshAccountUpdates])
 
@@ -898,6 +915,7 @@ export function App() {
                   : queueAccess?.default_active_queues ?? []
               }
               onKbQueuesChange={(keys) => void handleQueueChange(keys)}
+              onRefreshWidgetConfig={() => void refreshWidgetAccounts()}
             />
             <MessageFeedbackModal
               open={rateDownMessageId != null}

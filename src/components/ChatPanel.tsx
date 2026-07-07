@@ -300,6 +300,8 @@ type Props = {
   kbQueues?: KbQueueOption[]
   selectedKbQueues?: string[]
   onKbQueuesChange?: (keys: string[]) => void
+  /** Re-fetch account widget_features (e.g. calculator config) from the server. */
+  onRefreshWidgetConfig?: () => void
 }
 
 export function ChatPanel({
@@ -331,6 +333,7 @@ export function ChatPanel({
   kbQueues,
   selectedKbQueues = [],
   onKbQueuesChange,
+  onRefreshWidgetConfig,
 }: Props) {
   const [calculatorOpen, setCalculatorOpen] = useState(false)
   const updateBadgeCount =
@@ -397,7 +400,12 @@ export function ChatPanel({
           {showInstallmentCalculator && (
             <button
               type="button"
-              onClick={() => setCalculatorOpen((open) => !open)}
+              onClick={() => {
+                setCalculatorOpen((open) => {
+                  if (!open) onRefreshWidgetConfig?.()
+                  return !open
+                })
+              }}
               title={calculatorOpen ? 'Back to chat' : 'Installment calculator'}
               aria-label={calculatorOpen ? 'Back to chat' : 'Open installment calculator'}
               aria-pressed={calculatorOpen}
