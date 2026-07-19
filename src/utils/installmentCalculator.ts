@@ -12,6 +12,8 @@ export type InstallmentRow = {
 }
 
 export type CalculatorProductSettings = {
+  /** Custom display name for this product tab; falls back to CALCULATOR_LABELS. */
+  label?: string
   apr?: number
   tenors?: InstallmentTenor[]
   flatRates?: Partial<Record<InstallmentTenor, number>>

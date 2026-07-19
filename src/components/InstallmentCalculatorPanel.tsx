@@ -70,7 +70,7 @@ export function InstallmentCalculatorPanel({ onClose, allowedTypes, productSetti
                     : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-50'
                 }`}
               >
-                {CALCULATOR_LABELS[key]}
+                {productSettings?.[key]?.label || CALCULATOR_LABELS[key]}
               </button>
             )
           })}

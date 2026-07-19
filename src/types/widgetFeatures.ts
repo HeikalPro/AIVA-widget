@@ -6,6 +6,7 @@ import type {
 import { INSTALLMENT_TENORS } from '@/utils/installmentCalculator'
 
 export type WidgetCalculatorProductConfig = {
+  label?: string | null
   apr?: number | null
   tenors?: number[] | null
   flat_rates?: Record<string, number> | null
@@ -76,6 +77,9 @@ export function resolveCalculatorProductSettings(
   const saved = features?.installment_calculator?.products?.[type]
   if (!saved) return undefined
   const settings: CalculatorProductSettings = {}
+  if (typeof saved.label === 'string' && saved.label.trim()) {
+    settings.label = saved.label.trim()
+  }
   if (saved.apr != null && Number.isFinite(saved.apr) && saved.apr > 0) {
     settings.apr = saved.apr
   }
