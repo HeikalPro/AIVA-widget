@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Default accent (GoChat blue). Overridden per account via inline CSS vars set
+   on the widget root from widget_features.branding.accent_color. */
+:root {
+  --gochat-rgb: 0 87 168;
+  --gochat-dark-rgb: 0 61 117;
+  --gochat-light-rgb: 0 102 192;
+}
+
 html,
 body,
 #root {

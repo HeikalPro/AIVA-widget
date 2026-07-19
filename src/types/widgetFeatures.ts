@@ -18,8 +18,70 @@ export type WidgetInstallmentCalculatorConfig = {
   products?: Record<string, WidgetCalculatorProductConfig> | null
 }
 
+export type WidgetBrandingConfig = {
+  title?: string | null
+  subtitle?: string | null
+  accent_color?: string | null
+  logo_url?: string | null
+}
+
 export type WidgetFeatures = {
   installment_calculator?: WidgetInstallmentCalculatorConfig
+  branding?: WidgetBrandingConfig | null
+}
+
+export type ResolvedBranding = {
+  title?: string
+  subtitle?: string
+  accentColor?: string
+  logoUrl?: string
+}
+
+export function resolveBranding(
+  features: WidgetFeatures | null | undefined,
+): ResolvedBranding {
+  const b = features?.branding
+  if (!b) return {}
+  const out: ResolvedBranding = {}
+  if (typeof b.title === 'string' && b.title.trim()) out.title = b.title.trim()
+  if (typeof b.subtitle === 'string' && b.subtitle.trim()) out.subtitle = b.subtitle.trim()
+  if (typeof b.accent_color === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(b.accent_color.trim())) {
+    out.accentColor = b.accent_color.trim()
+  }
+  if (typeof b.logo_url === 'string' && b.logo_url.trim()) out.logoUrl = b.logo_url.trim()
+  return out
+}
+
+function hexToRgb(hex: string): [number, number, number] | null {
+  let h = hex.replace('#', '').trim()
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+  if (h.length !== 6) return null
+  const n = Number.parseInt(h, 16)
+  if (Number.isNaN(n)) return null
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+function mix(channel: number, target: number, amount: number): number {
+  return Math.round(channel + (target - channel) * amount)
+}
+
+/**
+ * CSS custom properties for the accent color (and derived dark/light shades),
+ * to spread onto the widget root so all `gochat` utilities recolor. Returns an
+ * empty object when no/invalid color is given (keeps the default blue).
+ */
+export function accentCssVars(accentColor?: string): Record<string, string> {
+  if (!accentColor) return {}
+  const rgb = hexToRgb(accentColor)
+  if (!rgb) return {}
+  const [r, g, b] = rgb
+  const dark: [number, number, number] = [mix(r, 0, 0.28), mix(g, 0, 0.28), mix(b, 0, 0.28)]
+  const light: [number, number, number] = [mix(r, 255, 0.14), mix(g, 255, 0.14), mix(b, 255, 0.14)]
+  return {
+    '--gochat-rgb': `${r} ${g} ${b}`,
+    '--gochat-dark-rgb': `${dark[0]} ${dark[1]} ${dark[2]}`,
+    '--gochat-light-rgb': `${light[0]} ${light[1]} ${light[2]}`,
+  }
 }
 
 export type WidgetAccount = {

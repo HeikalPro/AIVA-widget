@@ -20,6 +20,7 @@ import {
   formatAsEmail,
 } from '@/utils/copyResponseFormats'
 import type { CalculatorProductSettings, CalculatorType } from '@/utils/installmentCalculator'
+import { accentCssVars, type ResolvedBranding } from '@/types/widgetFeatures'
 
 /** Speech bubble with plus — new conversation */
 function IconNewChat({ className }: { className?: string }) {
@@ -82,7 +83,7 @@ const headerIconBtn =
   'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 outline-none transition-colors hover:border-gochat hover:bg-slate-50 hover:text-gochat focus-visible:ring-2 focus-visible:ring-gochat/30 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40'
 
 const userBubbleClass =
-  'user-chat-bubble max-w-[min(85vw,20rem)] rounded-2xl rounded-br-md border border-[#003D75] bg-[#0057A8] px-3.5 py-2.5 text-sm leading-relaxed text-white shadow-sm'
+  'user-chat-bubble max-w-[min(85vw,20rem)] rounded-2xl rounded-br-md border border-gochat-dark bg-gochat px-3.5 py-2.5 text-sm leading-relaxed text-white shadow-sm'
 
 function IconLogOut({ className }: { className?: string }) {
   return (
@@ -302,6 +303,8 @@ type Props = {
   onKbQueuesChange?: (keys: string[]) => void
   /** Re-fetch account widget_features (e.g. calculator config) from the server. */
   onRefreshWidgetConfig?: () => void
+  /** Per-account branding (header text, accent color, logo). */
+  branding?: ResolvedBranding
 }
 
 export function ChatPanel({
@@ -334,7 +337,11 @@ export function ChatPanel({
   selectedKbQueues = [],
   onKbQueuesChange,
   onRefreshWidgetConfig,
+  branding,
 }: Props) {
+  const brandTitle = branding?.title || 'GoChat247'
+  const brandSubtitle = branding?.subtitle || 'AI assistant'
+  const brandLogoUrl = branding?.logoUrl
   const [calculatorOpen, setCalculatorOpen] = useState(false)
   const updateBadgeCount =
     activeUpdateCount > 0 ? (unseenUpdateCount > 0 ? unseenUpdateCount : activeUpdateCount) : 0
@@ -364,18 +371,23 @@ export function ChatPanel({
       exit={{ opacity: 0, y: 6, scale: 0.98 }}
       transition={{ type: 'spring', stiffness: 420, damping: 32 }}
       title="Drag the header to move the window"
+      style={accentCssVars(branding?.accentColor) as React.CSSProperties}
       className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border-2 border-widget-strong bg-white shadow-widget-lg ring-1 ring-white/60"
     >
       <div className="h-1 shrink-0 bg-gradient-to-r from-gochat-dark via-gochat to-gochat-light" aria-hidden />
       <header className="drag relative flex shrink-0 cursor-move select-none items-center gap-3 border-b border-widget bg-white px-3.5 py-2.5">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-widget-strong bg-white p-0.5">
-            <BrandLogo className="h-full w-full object-contain" alt="" />
+            {brandLogoUrl ? (
+              <img src={brandLogoUrl} alt="" className="h-full w-full object-contain" draggable={false} />
+            ) : (
+              <BrandLogo className="h-full w-full object-contain" alt="" />
+            )}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold tracking-tight text-slate-900">GoChat247</p>
+            <p className="truncate text-sm font-semibold tracking-tight text-slate-900">{brandTitle}</p>
             <p className="truncate text-[10px] font-medium text-gochat">
-              {accountName ? `${accountName} · AI assistant` : 'AI assistant'}
+              {accountName ? `${accountName} · ${brandSubtitle}` : brandSubtitle}
             </p>
           </div>
         </div>
@@ -538,7 +550,11 @@ export function ChatPanel({
                 </div>
               )}
               <div className="mb-3 flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border-2 border-widget-strong bg-white p-1.5 shadow-sm">
-                <BrandLogo className="h-full w-full object-contain" alt="" />
+                {brandLogoUrl ? (
+                  <img src={brandLogoUrl} alt="" className="h-full w-full object-contain" draggable={false} />
+                ) : (
+                  <BrandLogo className="h-full w-full object-contain" alt="" />
+                )}
               </div>
               <p className="text-sm font-medium text-slate-800">How can I help?</p>
               <p className="mt-1 max-w-[16rem] text-xs leading-relaxed text-slate-600">
@@ -640,7 +656,7 @@ export function ChatPanel({
               onClick={onSend}
               disabled={!canSend}
               title="Send (Enter)"
-              className="login-primary-btn mb-0.5 inline-flex h-9 w-9 shrink-0 appearance-none items-center justify-center rounded-xl border border-gochat-dark bg-[#0057A8] text-white shadow-gochat outline-none transition-all hover:bg-gochat-light disabled:cursor-not-allowed disabled:border-slate-300 disabled:!bg-slate-200 disabled:!text-slate-400 disabled:shadow-none"
+              className="login-primary-btn mb-0.5 inline-flex h-9 w-9 shrink-0 appearance-none items-center justify-center rounded-xl border border-gochat-dark bg-gochat text-white shadow-gochat outline-none transition-all hover:bg-gochat-light disabled:cursor-not-allowed disabled:border-slate-300 disabled:!bg-slate-200 disabled:!text-slate-400 disabled:shadow-none"
             >
               <IconSend className="h-4 w-4" />
             </button>

@@ -7,10 +7,12 @@ export default {
         sans: ['Inter', 'Noto Sans Arabic', 'Segoe UI', 'Tahoma', 'system-ui', 'sans-serif'],
       },
       colors: {
+        // Driven by CSS variables so the accent can be themed per account at runtime.
+        // Defaults live in src/renderer/index.css (:root).
         gochat: {
-          DEFAULT: '#0057A8',
-          dark: '#003D75',
-          light: '#0066C0',
+          DEFAULT: 'rgb(var(--gochat-rgb) / <alpha-value>)',
+          dark: 'rgb(var(--gochat-dark-rgb) / <alpha-value>)',
+          light: 'rgb(var(--gochat-light-rgb) / <alpha-value>)',
         },
         widget: {
           DEFAULT: '#cbd5e1',

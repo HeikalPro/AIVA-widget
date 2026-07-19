@@ -51,6 +51,7 @@ import {
   buildCalculatorProductSettingsMap,
   installmentCalculatorTypes,
   isInstallmentCalculatorEnabled,
+  resolveBranding,
 } from '@/types/widgetFeatures'
 import {
   fetchActiveAccountUpdates,
@@ -106,6 +107,7 @@ export function App() {
   const showInstallmentCalculator = isInstallmentCalculatorEnabled(activeAccount?.widget_features)
   const calculatorTypes = installmentCalculatorTypes(activeAccount?.widget_features)
   const calculatorProductSettings = buildCalculatorProductSettingsMap(activeAccount?.widget_features)
+  const branding = resolveBranding(activeAccount?.widget_features)
 
   useEffect(() => {
     assertApiBaseUrl()
@@ -916,6 +918,7 @@ export function App() {
               }
               onKbQueuesChange={(keys) => void handleQueueChange(keys)}
               onRefreshWidgetConfig={() => void refreshWidgetAccounts()}
+              branding={branding}
             />
             <MessageFeedbackModal
               open={rateDownMessageId != null}
