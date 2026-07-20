@@ -63,6 +63,19 @@ import type { WidgetAccount } from '@/types/widgetFeatures'
 
 /** Poll for account announcements and widget config while logged in. */
 const WIDGET_SYNC_POLL_MS = 15_000
+/**
+ * Random spread applied to each poll interval. Without it, widgets that start
+ * together (shift login, backend restart reconnecting everyone) stay locked to
+ * the same 15s cadence and hit the backend as one burst every tick. Measured:
+ * the backend is healthy to ~50 concurrent requests but collapses past ~100,
+ * so dispersing the herd matters more than the exact interval.
+ */
+const WIDGET_SYNC_JITTER = 0.2
+
+/** 15s ±20%, resampled every tick so widgets drift apart rather than converge. */
+function nextSyncDelayMs(): number {
+  return Math.round(WIDGET_SYNC_POLL_MS * (1 + (Math.random() * 2 - 1) * WIDGET_SYNC_JITTER))
+}
 
 export function App() {
   const { state, setAuthenticated, logout } = useAuth()
@@ -322,10 +335,16 @@ export function App() {
 
   useEffect(() => {
     if (state !== 'authenticated') return
-    const timer = window.setInterval(() => {
+    // Self-rescheduling timeout rather than setInterval: the delay is
+    // resampled after every poll, so any two widgets keep diverging instead of
+    // sharing one fixed cadence.
+    let timer = 0
+    const tick = () => {
       void refreshAccountUpdates(undefined, { showPopupIfNew: true })
-    }, WIDGET_SYNC_POLL_MS)
-    return () => window.clearInterval(timer)
+      timer = window.setTimeout(tick, nextSyncDelayMs())
+    }
+    timer = window.setTimeout(tick, nextSyncDelayMs())
+    return () => window.clearTimeout(timer)
   }, [state, refreshAccountUpdates])
 
   useEffect(() => {
