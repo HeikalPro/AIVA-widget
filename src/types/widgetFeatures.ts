@@ -25,9 +25,63 @@ export type WidgetBrandingConfig = {
   logo_url?: string | null
 }
 
+export type WidgetLocationItem = {
+  name: string
+  area?: string | null
+  address?: string | null
+  phone?: string | null
+  hours?: string | null
+  maps_url?: string | null
+}
+
+export type WidgetLocationsConfig = {
+  enabled?: boolean
+  items?: WidgetLocationItem[] | null
+}
+
 export type WidgetFeatures = {
   installment_calculator?: WidgetInstallmentCalculatorConfig
   branding?: WidgetBrandingConfig | null
+  locations?: WidgetLocationsConfig | null
+}
+
+/** Cleaned location entry ready for display. */
+export type ResolvedLocation = {
+  name: string
+  area?: string
+  address?: string
+  phone?: string
+  hours?: string
+  mapsUrl?: string
+}
+
+/**
+ * Locations to show in the widget's locations panel — empty array when the
+ * feature is disabled, unset, or has no valid (named) entries.
+ */
+export function resolveLocations(
+  features: WidgetFeatures | null | undefined,
+): ResolvedLocation[] {
+  const cfg = features?.locations
+  if (!cfg?.enabled || !Array.isArray(cfg.items)) return []
+  const out: ResolvedLocation[] = []
+  for (const raw of cfg.items) {
+    const name = typeof raw?.name === 'string' ? raw.name.trim() : ''
+    if (!name) continue
+    const loc: ResolvedLocation = { name }
+    if (typeof raw.area === 'string' && raw.area.trim()) loc.area = raw.area.trim()
+    if (typeof raw.address === 'string' && raw.address.trim()) loc.address = raw.address.trim()
+    if (typeof raw.phone === 'string' && raw.phone.trim()) loc.phone = raw.phone.trim()
+    if (typeof raw.hours === 'string' && raw.hours.trim()) loc.hours = raw.hours.trim()
+    if (
+      typeof raw.maps_url === 'string' &&
+      /^https?:\/\//i.test(raw.maps_url.trim())
+    ) {
+      loc.mapsUrl = raw.maps_url.trim()
+    }
+    out.push(loc)
+  }
+  return out
 }
 
 export type ResolvedBranding = {

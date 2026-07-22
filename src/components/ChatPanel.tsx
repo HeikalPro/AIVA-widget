@@ -6,6 +6,7 @@ import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { BrandLogo } from '@/components/BrandLogo'
 import { InstallmentCalculatorPanel } from '@/components/InstallmentCalculatorPanel'
+import { LocationsPanel } from '@/components/LocationsPanel'
 import { Toast } from '@/components/Toast'
 import { WindowChromeButtons } from '@/components/WindowChromeButtons'
 import type { ChatMessage } from '@/types/api'
@@ -20,7 +21,7 @@ import {
   formatAsEmail,
 } from '@/utils/copyResponseFormats'
 import type { CalculatorProductSettings, CalculatorType } from '@/utils/installmentCalculator'
-import { accentCssVars, type ResolvedBranding } from '@/types/widgetFeatures'
+import { accentCssVars, type ResolvedBranding, type ResolvedLocation } from '@/types/widgetFeatures'
 
 /** Speech bubble with plus — new conversation */
 function IconNewChat({ className }: { className?: string }) {
@@ -56,6 +57,25 @@ function IconCalculator({ className }: { className?: string }) {
     >
       <rect x="4" y="2" width="16" height="20" rx="2" />
       <path d="M8 6h8M8 10h2M12 10h2M16 10h0M8 14h2M12 14h2M16 14h0M8 18h2M12 18h4" />
+    </svg>
+  )
+}
+
+/** Map pin — locations */
+function IconMapPin({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
     </svg>
   )
 }
@@ -298,6 +318,8 @@ type Props = {
   showInstallmentCalculator?: boolean
   calculatorTypes?: CalculatorType[]
   calculatorProductSettings?: Partial<Record<CalculatorType, CalculatorProductSettings>>
+  /** Branch/office list — the locations button shows when non-empty. */
+  locations?: ResolvedLocation[]
   kbQueues?: KbQueueOption[]
   selectedKbQueues?: string[]
   onKbQueuesChange?: (keys: string[]) => void
@@ -333,6 +355,7 @@ export function ChatPanel({
   showInstallmentCalculator = false,
   calculatorTypes = [],
   calculatorProductSettings,
+  locations = [],
   kbQueues,
   selectedKbQueues = [],
   onKbQueuesChange,
@@ -343,6 +366,8 @@ export function ChatPanel({
   const brandSubtitle = branding?.subtitle || 'AI assistant'
   const brandLogoUrl = branding?.logoUrl
   const [calculatorOpen, setCalculatorOpen] = useState(false)
+  const [locationsOpen, setLocationsOpen] = useState(false)
+  const showLocations = locations.length > 0
   const updateBadgeCount =
     activeUpdateCount > 0 ? (unseenUpdateCount > 0 ? unseenUpdateCount : activeUpdateCount) : 0
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -350,6 +375,10 @@ export function ChatPanel({
   useEffect(() => {
     if (!showInstallmentCalculator) setCalculatorOpen(false)
   }, [showInstallmentCalculator, accountId])
+
+  useEffect(() => {
+    if (!showLocations) setLocationsOpen(false)
+  }, [showLocations, accountId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -413,6 +442,7 @@ export function ChatPanel({
             <button
               type="button"
               onClick={() => {
+                setLocationsOpen(false)
                 setCalculatorOpen((open) => {
                   if (!open) onRefreshWidgetConfig?.()
                   return !open
@@ -426,10 +456,28 @@ export function ChatPanel({
               <IconCalculator className="h-[18px] w-[18px] shrink-0" />
             </button>
           )}
+          {showLocations && (
+            <button
+              type="button"
+              onClick={() => {
+                setCalculatorOpen(false)
+                setLocationsOpen((open) => {
+                  if (!open) onRefreshWidgetConfig?.()
+                  return !open
+                })
+              }}
+              title={locationsOpen ? 'Back to chat' : 'Our locations'}
+              aria-label={locationsOpen ? 'Back to chat' : 'Open locations'}
+              aria-pressed={locationsOpen}
+              className={`${headerIconBtn} ${locationsOpen ? 'border-gochat bg-gochat/10 text-gochat' : ''}`}
+            >
+              <IconMapPin className="h-[18px] w-[18px] shrink-0" />
+            </button>
+          )}
           <button
             type="button"
             onClick={onNewConversation}
-            disabled={loading || calculatorOpen}
+            disabled={loading || calculatorOpen || locationsOpen}
             title="New chat"
             aria-label="Start new chat"
             className={headerIconBtn}
@@ -463,7 +511,7 @@ export function ChatPanel({
           <select
             value={accountId ?? ''}
             onChange={(e) => onAccountChange(Number(e.target.value))}
-            disabled={loading || calculatorOpen}
+            disabled={loading || calculatorOpen || locationsOpen}
             className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-gochat"
           >
             {accounts.map((a) => (
@@ -511,6 +559,8 @@ export function ChatPanel({
           allowedTypes={calculatorTypes}
           productSettings={calculatorProductSettings}
         />
+      ) : locationsOpen ? (
+        <LocationsPanel onClose={() => setLocationsOpen(false)} locations={locations} />
       ) : (
       <div className="no-drag relative min-h-0 flex-1 overflow-y-auto bg-white px-3.5 py-3 [scrollbar-color:rgba(148,163,184,0.6)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent">
         <div className="relative space-y-3">

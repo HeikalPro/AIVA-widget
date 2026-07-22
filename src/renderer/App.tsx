@@ -52,6 +52,7 @@ import {
   installmentCalculatorTypes,
   isInstallmentCalculatorEnabled,
   resolveBranding,
+  resolveLocations,
 } from '@/types/widgetFeatures'
 import {
   fetchActiveAccountUpdates,
@@ -121,6 +122,7 @@ export function App() {
   const calculatorTypes = installmentCalculatorTypes(activeAccount?.widget_features)
   const calculatorProductSettings = buildCalculatorProductSettingsMap(activeAccount?.widget_features)
   const branding = resolveBranding(activeAccount?.widget_features)
+  const widgetLocations = resolveLocations(activeAccount?.widget_features)
 
   useEffect(() => {
     assertApiBaseUrl()
@@ -929,6 +931,7 @@ export function App() {
               showInstallmentCalculator={showInstallmentCalculator}
               calculatorTypes={calculatorTypes}
               calculatorProductSettings={calculatorProductSettings}
+              locations={widgetLocations}
               kbQueues={queueAccess?.available_queues}
               selectedKbQueues={
                 selectedQueues.length
