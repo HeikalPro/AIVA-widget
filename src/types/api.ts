@@ -4,6 +4,16 @@ export type LoginResponse = {
   refresh_token?: string
 }
 
+export type CurrentUser = {
+  id: number
+  email: string
+  organization_id: number
+  first_name?: string | null
+  last_name?: string | null
+  roles?: string[]
+  permissions?: string[]
+}
+
 export type ChatRequest = {
   user_message: string
   conversation_id?: string

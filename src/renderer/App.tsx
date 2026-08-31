@@ -46,6 +46,7 @@ import {
   pickDefaultAccountId,
   setStoredAccountId,
 } from '@/services/accountsClient'
+import { displayNameFromUser } from '@/services/userClient'
 import type { ChatMessage } from '@/types/api'
 import {
   buildCalculatorProductSettingsMap,
@@ -79,7 +80,7 @@ function nextSyncDelayMs(): number {
 }
 
 export function App() {
-  const { state, setAuthenticated, logout } = useAuth()
+  const { state, user, setAuthenticated, logout } = useAuth()
   const authRef = useRef(state)
   useEffect(() => {
     authRef.current = state
@@ -927,6 +928,7 @@ export function App() {
               accounts={widgetAccounts}
               accountId={accountId}
               accountName={activeAccount?.name ?? null}
+              userName={displayNameFromUser(user)}
               onAccountChange={handleAccountChange}
               showInstallmentCalculator={showInstallmentCalculator}
               calculatorTypes={calculatorTypes}

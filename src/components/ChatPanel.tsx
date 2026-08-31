@@ -314,6 +314,8 @@ type Props = {
   accounts?: AccountOption[]
   accountId?: number | null
   accountName?: string | null
+  /** Signed-in user's display name; empty string hides the greeting/chip. */
+  userName?: string | null
   onAccountChange?: (accountId: number) => void
   showInstallmentCalculator?: boolean
   calculatorTypes?: CalculatorType[]
@@ -351,6 +353,7 @@ export function ChatPanel({
   accounts = [],
   accountId = null,
   accountName = null,
+  userName = null,
   onAccountChange,
   showInstallmentCalculator = false,
   calculatorTypes = [],
@@ -365,6 +368,15 @@ export function ChatPanel({
   const brandTitle = branding?.title || 'GoChat247'
   const brandSubtitle = branding?.subtitle || 'AI assistant'
   const brandLogoUrl = branding?.logoUrl
+  const displayName = (userName ?? '').trim()
+  const firstName = displayName.split(' ')[0] ?? ''
+  const userInitials =
+    displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? '')
+      .join('') || null
   const [calculatorOpen, setCalculatorOpen] = useState(false)
   const [locationsOpen, setLocationsOpen] = useState(false)
   const showLocations = locations.length > 0
@@ -420,6 +432,19 @@ export function ChatPanel({
             </p>
           </div>
         </div>
+        {displayName && (
+          <div
+            className="no-drag flex min-w-0 shrink items-center gap-1.5 rounded-full border border-widget bg-slate-50 py-0.5 pl-0.5 pr-2"
+            title={`Signed in as ${displayName}`}
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gochat text-[9px] font-bold leading-none text-white">
+              {userInitials}
+            </span>
+            <span className="max-w-[5.5rem] truncate text-[11px] font-medium text-slate-700">
+              {firstName}
+            </span>
+          </div>
+        )}
         <div className="no-drag flex shrink-0 items-center gap-0.5">
           {activeUpdateCount > 0 && (
             <button
@@ -606,7 +631,9 @@ export function ChatPanel({
                   <BrandLogo className="h-full w-full object-contain" alt="" />
                 )}
               </div>
-              <p className="text-sm font-medium text-slate-800">How can I help?</p>
+              <p className="text-sm font-medium text-slate-800">
+                {firstName ? `Hi ${firstName}, how can I help?` : 'How can I help?'}
+              </p>
               <p className="mt-1 max-w-[16rem] text-xs leading-relaxed text-slate-600">
                 Ask a question about your knowledge base or start a new topic.
               </p>
