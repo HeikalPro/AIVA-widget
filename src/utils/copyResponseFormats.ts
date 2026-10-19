@@ -58,7 +58,7 @@ export function formatAsEmail(content: string): string {
   }
 
   const body = bodyParts.join('\n\n')
-  return ['Dear Customer,', '', body, '', 'Best regards,', 'GoChat247 Support'].join('\n')
+  return ['Dear Customer,', '', body, '', 'Best regards,', 'GoAI Support'].join('\n')
 }
 
 function shortenForChat(sentence: string, maxLen = 140): string {

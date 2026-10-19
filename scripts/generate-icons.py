@@ -1,4 +1,4 @@
-"""Generate high-contrast app icons for dark Windows desktops."""
+"""Generate high-contrast app icons for dark Windows desktops from the GoAI logo."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def rounded_rect_mask(size: int, radius: int) -> Image.Image:
 
 
 def detect_icon_crop(source: Image.Image) -> tuple[int, int, int, int]:
-    """Return bounds for the speech-bubble mark (exclude the wordmark below)."""
+    """Return bounds for the wordmark + arrows (exclude the tagline below)."""
     rgba = source.convert("RGBA")
     alpha = rgba.getchannel("A")
     width, height = rgba.size
@@ -60,18 +60,6 @@ def detect_icon_crop(source: Image.Image) -> tuple[int, int, int, int]:
     )
 
 
-def recolor_foreground(image: Image.Image, color: tuple[int, int, int]) -> Image.Image:
-    rgba = image.convert("RGBA")
-    pixels = rgba.load()
-    r, g, b = color
-    for y in range(rgba.height):
-        for x in range(rgba.width):
-            _, _, _, alpha = pixels[x, y]
-            if alpha > 24:
-                pixels[x, y] = (r, g, b, alpha)
-    return rgba
-
-
 def make_gradient_background(size: int, radius: int) -> Image.Image:
     gradient = Image.new("RGBA", (size, size))
     draw = ImageDraw.Draw(gradient)
@@ -92,11 +80,11 @@ def make_electron_icon(source: Image.Image, size: int = 512) -> Image.Image:
     radius = int(size * 0.22)
     canvas = make_gradient_background(size, radius)
 
+    # The wordmark keeps its own colours (black + blue arrows) and is wide, so it
+    # is sized by width; the source is small, so this scales up.
     icon = source.crop(detect_icon_crop(source))
-    icon = recolor_foreground(icon, BRAND_BLUE)
-
-    max_icon = int(size * 0.58)
-    icon.thumbnail((max_icon, max_icon), Image.Resampling.LANCZOS)
+    target_w = int(size * 0.74)
+    icon = icon.resize((target_w, round(icon.height * target_w / icon.width)), Image.Resampling.LANCZOS)
 
     x = (size - icon.width) // 2
     y = (size - icon.height) // 2
@@ -114,9 +102,12 @@ def make_electron_icon(source: Image.Image, size: int = 512) -> Image.Image:
     return canvas
 
 
-def make_brand_logo(source: Image.Image, size: int = 500) -> Image.Image:
-    logo = recolor_foreground(source, BRAND_BLUE)
-    logo = logo.resize((size, size), Image.Resampling.LANCZOS)
+def make_brand_logo(source: Image.Image, margin: int = 10) -> Image.Image:
+    """The wordmark centred on a transparent square, at source resolution."""
+    mark = source.crop(detect_icon_crop(source))
+    side = max(mark.width, mark.height) + 2 * margin
+    logo = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    logo.alpha_composite(mark, ((side - mark.width) // 2, (side - mark.height) // 2))
     return logo
 
 
@@ -127,7 +118,7 @@ def save_png(image: Image.Image, path: Path) -> None:
 
 
 def main() -> None:
-    source_path = PUBLIC / "GoChat247_blue_transparent.png"
+    source_path = PUBLIC / "GoAI_logo.png"
     source = Image.open(source_path).convert("RGBA")
     crop = detect_icon_crop(source)
     print(f"icon crop: {crop}")
@@ -141,8 +132,8 @@ def main() -> None:
         ROOT / "dist" / "electron-icon.png",
     ]
     targets_brand = [
-        PUBLIC / "GoChat247_blue_transparent.png",
-        ROOT / "dist" / "GoChat247_blue_transparent.png",
+        PUBLIC / "GoAI_mark.png",
+        ROOT / "dist" / "GoAI_mark.png",
     ]
 
     for path in targets_electron:

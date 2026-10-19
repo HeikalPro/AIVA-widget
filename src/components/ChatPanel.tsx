@@ -365,7 +365,7 @@ export function ChatPanel({
   onRefreshWidgetConfig,
   branding,
 }: Props) {
-  const brandTitle = branding?.title || 'GoChat247'
+  const brandTitle = branding?.title || 'GoAI'
   const brandSubtitle = branding?.subtitle || 'AI assistant'
   const brandLogoUrl = branding?.logoUrl
   const displayName = (userName ?? '').trim()
@@ -664,7 +664,7 @@ export function ChatPanel({
                 className="mr-auto flex w-full max-w-[min(92%,30rem)] flex-col items-start"
               >
                 <span className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wider text-slate-500">
-                  GoChat247
+                  GoAI
                 </span>
                 <div className="w-full rounded-2xl border border-widget bg-slate-50 px-3.5 py-2.5 text-sm leading-relaxed text-slate-800 shadow-sm">
                   <div className="markdown-body break-words" dir="auto">
